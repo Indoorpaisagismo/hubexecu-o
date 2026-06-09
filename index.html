@@ -496,7 +496,34 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, updateDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCe5c7z-CBesIw3hR9TOBl8EYUdEtkl0XY",
+  authDomain: "indoor-hub.firebaseapp.com",
+  projectId: "indoor-hub",
+  storageBucket: "indoor-hub.firebasestorage.app",
+  messagingSenderId: "1042863056704",
+  appId: "1:1042863056704:web:58598bf4aea53d2b01fca5"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ===== FIREBASE =====
+async function fbSalvarProjeto(p) { try { await setDoc(doc(db,'projetos',String(p.id)),p); } catch(e){console.warn(e);} }
+async function fbSalvarRegistro(r) { try { await setDoc(doc(db,'registros',String(r.id)),r); } catch(e){console.warn(e);} }
+async function fbSalvarMeta(m) { try { await setDoc(doc(db,'metas',String(m.id)),m); } catch(e){console.warn(e);} }
+async function fbDeletar(col,id) { try { await deleteDoc(doc(db,col,String(id))); } catch(e){console.warn(e);} }
+async function fbAtualizarProjeto(id,dados) { try { await updateDoc(doc(db,'projetos',String(id)),dados); } catch(e){console.warn(e);} }
+
+function iniciarListeners() {
+  onSnapshot(collection(db,'projetos'), snap => { projetos = snap.docs.map(d=>d.data()); renderDash(); renderProjetos(); renderCampo(); renderMeta(); });
+  onSnapshot(collection(db,'registros'), snap => { registros = snap.docs.map(d=>d.data()); renderDash(); });
+  onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
+}
+
 // ===== CONSTANTES =====
 const CUSTO = {
   gerente: 255.34, encarregado: 220.68, jardineiro: 172.11, diarista: 110,
@@ -504,35 +531,12 @@ const CUSTO = {
 };
 const EQUIPE_VALS = {Gerente: 255.34, Encarregado: 220.68, Jardineiro: 172.11, Diarista: 110};
 
-// ===== GOOGLE SHEETS =====
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwL7PlmRmEnnbfF4H-3q-q4F0OZ_zCk2ELO3E7Fc848pe5ClUhGjR2z1euaIvJyqFdC/exec';
-
-async function enviarSheets(tipo, dados) {
-  try {
-    // Serializar arrays para string antes de enviar via GET
-    const dadosLimpos = { tipo };
-    for (const [k, v] of Object.entries(dados)) {
-      if (Array.isArray(v)) dadosLimpos[k] = v.join('|');
-      else if (v !== null && v !== undefined) dadosLimpos[k] = v;
-    }
-    const payload = encodeURIComponent(JSON.stringify(dadosLimpos));
-    await fetch(`${SHEETS_URL}?dados=${payload}`, { mode: 'no-cors' });
-  } catch (err) {
-    console.warn('Sheets sync error:', err);
-  }
-}
-
 // ===== ESTADO =====
-let projetos = JSON.parse(localStorage.getItem('indoor_proj') || '[]');
-let registros = JSON.parse(localStorage.getItem('indoor_reg') || '[]');
-let metas = JSON.parse(localStorage.getItem('indoor_metas') || '[]');
+let projetos = [];
+let registros = [];
+let metas = [];
 let projCampo = null;
-
-function salvar() {
-  localStorage.setItem('indoor_proj', JSON.stringify(projetos));
-  localStorage.setItem('indoor_reg', JSON.stringify(registros));
-  localStorage.setItem('indoor_metas', JSON.stringify(metas));
-}
+function salvar() {}
 
 // ===== UTILS =====
 function toast(m) {
@@ -711,7 +715,7 @@ function renderProjetos() {
       </div>
       <div class="acoes">
         <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
-        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){projetos=projetos.filter(x=>x.id!=='${p.id}');salvar();renderProjetos();toast('Arquivado');}">Arquivar</button>
+        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');salvar();renderProjetos();toast('Arquivado');}">Arquivar</button>
       </div>
     </div>`;
   }).join('');
@@ -737,7 +741,7 @@ function salvarProjeto() {
   };
   projetos.push(p);
   salvar();
-  enviarSheets('projeto', p);
+  fbSalvarProjeto(p);
   fecharModal('m-projeto');
   renderProjetos();
   toast('Projeto cadastrado ✓');
@@ -846,7 +850,7 @@ function salvarMeta() {
   };
   metas.push(meta);
   salvar();
-  enviarSheets('meta', { ...meta, projetoNome: (projetos.find(p => p.id === meta.projetoId) || {}).nome || '' });
+  fbSalvarMeta(meta);
   toast('Meta publicada ✓');
   document.getElementById('meta-projeto').value = '';
   document.getElementById('meta-tarefas').value = '';
@@ -993,10 +997,8 @@ function registrarCampo() {
   const idx = projetos.findIndex(p => p.id === projCampo.id);
   if (idx !== -1) projetos[idx].progresso = novoProgresso;
   salvar();
-  enviarSheets('registro', { ...reg, projetoNome: projCampo.nome });
-
-  // Atualizar progresso do projeto no Sheets também
-  if (idx !== -1) enviarSheets('projeto', projetos[idx]);
+  fbSalvarRegistro(reg);
+  fbAtualizarProjeto(projCampo.id, { progresso: novoProgresso });
 
   // 🗓 CALENDÁRIO: se chegou em 100%, agendar manutenção de entrega em 30 dias
   if (novoProgresso >= 100) {
@@ -1145,6 +1147,7 @@ function salvarEdicaoMeta() {
   metas[idx].tarefas = document.getElementById('edit-meta-tarefas').value.trim().split('\n').filter(t => t.trim());
   metas[idx].obs = document.getElementById('edit-meta-obs').value.trim();
   salvar();
+  fbSalvarMeta(metas[idx]);
   fecharModal('m-edit-meta');
   renderMeta();
   renderDash();
@@ -1174,10 +1177,12 @@ function apagarRegistro(id) {
 
 function executarApagar() {
   if (tipoParaApagar === 'meta') {
+    fbDeletar('metas', idParaApagar);
     metas = metas.filter(x => x.id !== idParaApagar);
     salvar(); renderMeta(); renderDash();
     toast('Meta apagada');
   } else if (tipoParaApagar === 'registro') {
+    fbDeletar('registros', idParaApagar);
     registros = registros.filter(x => x.id !== idParaApagar);
     salvar(); renderDash();
     toast('Registro apagado');
@@ -1209,6 +1214,7 @@ function salvarEdicaoRegistro() {
   registros[idx].gastoExtraDesc = document.getElementById('edit-reg-extras-desc').value.trim();
   registros[idx].progresso = parseInt(document.getElementById('edit-reg-progresso').value) || 0;
   salvar();
+  fbSalvarRegistro(registros[idx]);
   fecharModal('m-edit-reg');
   renderDash();
   toast('Registro atualizado ✓');
@@ -1216,7 +1222,31 @@ function salvarEdicaoRegistro() {
 
 // ===== INIT =====
 atualizarData();
-renderDash();
+iniciarListeners();
+
+// Expor funções globalmente para onclick inline funcionar com ES module
+window.mudarAba = mudarAba;
+window.abrirModal = abrirModal;
+window.fecharModal = fecharModal;
+window.salvarProjeto = salvarProjeto;
+window.excluirProjeto = excluirProjeto;
+window.verDetalhes = verDetalhes;
+window.salvarMeta = salvarMeta;
+window.selecionarProjetoCampo = selecionarProjetoCampo;
+window.calcularCustoCampo = calcularCustoCampo;
+window.atualizarProgresso = atualizarProgresso;
+window.registrarCampo = registrarCampo;
+window.confirmarPIN = confirmarPIN;
+window.validarPIN = validarPIN;
+window.abrirEditarMeta = abrirEditarMeta;
+window.salvarEdicaoMeta = salvarEdicaoMeta;
+window.apagarMeta = apagarMeta;
+window.abrirEditarRegistro = abrirEditarRegistro;
+window.salvarEdicaoRegistro = salvarEdicaoRegistro;
+window.apagarRegistro = apagarRegistro;
+window.executarApagar = executarApagar;
+window.fbDeletar = fbDeletar;
+</script>
 </script>
 </body>
 </html>
