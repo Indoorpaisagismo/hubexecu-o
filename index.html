@@ -921,7 +921,7 @@ function salvarMeta() {
   };
   metas.push(meta);
   salvar();
-  fbSalvarMeta(meta);
+  fbSalvarMeta({ ...meta, projetoNome: proj.nome });
   toast('Meta publicada ✓');
   document.getElementById('meta-projeto').value = '';
   document.getElementById('meta-projeto-confirmado').style.display = 'none';
@@ -1091,7 +1091,7 @@ function registrarCampo() {
   const idx = projetos.findIndex(p => p.id === projCampo.id);
   if (idx !== -1) projetos[idx].progresso = novoProgresso;
   salvar();
-  fbSalvarRegistro(reg);
+  fbSalvarRegistro({ ...reg, projetoNome: projCampo.nome });
   fbAtualizarProjeto(projCampo.id, { progresso: novoProgresso });
 
   // 🗓 CALENDÁRIO: se chegou em 100%, criar evento automaticamente via API
@@ -1285,6 +1285,8 @@ function salvarEdicaoMeta() {
   metas[idx].equipe = equipe;
   metas[idx].tarefas = document.getElementById('edit-meta-tarefas').value.trim().split('\n').filter(t => t.trim());
   metas[idx].obs = document.getElementById('edit-meta-obs').value.trim();
+  const projMeta = projetos.find(p => String(p.id) === String(metas[idx].projetoId));
+  metas[idx].projetoNome = projMeta ? projMeta.nome : '';
   salvar();
   fbSalvarMeta(metas[idx]);
   fecharModal('m-edit-meta');
