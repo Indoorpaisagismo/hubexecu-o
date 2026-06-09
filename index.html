@@ -1396,38 +1396,37 @@ function agendarManutencao(nomeProj, dataISO) {
   client.requestAccessToken();
 }
 
-// ===== INIT =====
-atualizarData();
-iniciarListeners();
-
-// Expor funções globalmente para onclick inline funcionar com ES module
+// ===== EXPOR FUNÇÕES GLOBALMENTE =====
 window.mudarAba = mudarAba;
 window.abrirModal = abrirModal;
 window.fecharModal = fecharModal;
 window.salvarProjeto = salvarProjeto;
-window.excluirProjeto = excluirProjeto;
 window.verDetalhes = verDetalhes;
+window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.salvarMeta = salvarMeta;
 window.selecionarProjetoCampo = selecionarProjetoCampo;
 window.calcularCustoCampo = calcularCustoCampo;
-window.atualizarProgresso = atualizarProgresso;
 window.registrarCampo = registrarCampo;
 window.confirmarPIN = confirmarPIN;
 window.validarPIN = validarPIN;
 window.abrirEditarMeta = abrirEditarMeta;
+window.abrirModalEditMeta = abrirModalEditMeta;
 window.salvarEdicaoMeta = salvarEdicaoMeta;
 window.apagarMeta = apagarMeta;
 window.abrirEditarRegistro = abrirEditarRegistro;
+window.abrirModalEditReg = abrirModalEditReg;
 window.salvarEdicaoRegistro = salvarEdicaoRegistro;
 window.apagarRegistro = apagarRegistro;
 window.executarApagar = executarApagar;
-window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.confirmarPINProjeto = confirmarPINProjeto;
 window.abrirModalEditProj = abrirModalEditProj;
 window.salvarEdicaoProjeto = salvarEdicaoProjeto;
 window.fbDeletar = fbDeletar;
 window.agendarManutencao = agendarManutencao;
-</script>
+
+// ===== INIT =====
+atualizarData();
+iniciarListeners();
 </script>
 </body>
 </html>
