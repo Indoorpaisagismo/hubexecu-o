@@ -414,9 +414,21 @@
 
     <button class="btn-campo" onclick="registrarCampo()">Enviar registro do dia</button>
   </div>
+
+  <!-- HISTÓRICO DE REGISTROS -->
+  <div style="margin-top:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span class="stit" style="margin-bottom:0">Histórico de registros</span>
+      <select class="campo-sel" id="reg-filtro-proj" style="width:auto;font-size:12px;padding:6px 10px" onchange="renderRegistros()">
+        <option value="">Todos os projetos</option>
+      </select>
+    </div>
+    <div id="registros-lista"></div>
+  </div>
 </div>
 
 <!-- ===== SEMANA ===== -->
+
 <div class="aba" id="aba-semana">
   <div class="stit" id="semana-tit">Semana atual</div>
   <div id="semana-grid"></div>
@@ -552,11 +564,21 @@ async function enviarSheets(tipo, dados) {
   try {
     const dadosLimpos = { tipo };
     for (const [k, v] of Object.entries(dados)) {
-      if (Array.isArray(v)) dadosLimpos[k] = v.join('|');
-      else if (v !== null && v !== undefined) dadosLimpos[k] = String(v);
+      if (k === 'tarefas' && Array.isArray(v)) {
+        dadosLimpos['tarefasFeitas'] = v.filter(t => t.feita).map(t => t.texto || t).join('|');
+      } else if (Array.isArray(v)) {
+        dadosLimpos[k] = v.join('|');
+      } else if (v !== null && v !== undefined) {
+        dadosLimpos[k] = v;
+      }
     }
-    const payload = encodeURIComponent(JSON.stringify(dadosLimpos));
-    await fetch(`${SHEETS_URL}?dados=${payload}`, { mode: 'no-cors' });
+    // Usar POST para suportar payloads maiores
+    fetch(SHEETS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(dadosLimpos)
+    });
   } catch(e) { console.warn('Sheets:', e); }
 }
 
@@ -577,7 +599,7 @@ async function fbAtualizarProjeto(id,dados) { try { await updateDoc(doc(db,'proj
 
 function iniciarListeners() {
   onSnapshot(collection(db,'projetos'), snap => { projetos = snap.docs.map(d=>d.data()); renderDash(); renderProjetos(); renderMeta(); renderCampo(); });
-  onSnapshot(collection(db,'registros'), snap => { registros = snap.docs.map(d=>d.data()); renderDash(); });
+  onSnapshot(collection(db,'registros'), snap => { registros = snap.docs.map(d=>d.data()); renderDash(); renderRegistros(); });
   onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
 }
 
@@ -627,8 +649,9 @@ function mudarAba(aba, btn) {
   btn.classList.add('ativo');
   if (aba==='dashboard') renderDash();
   if (aba==='projetos') renderProjetos();
-  if (aba==='campo') renderCampo();
+  if (aba==='campo') { renderCampo(); renderRegistros(); }
   if (aba==='semana') renderSemana();
+  if (aba==='registros') renderRegistros();
   if (aba==='meta') renderMeta();
 }
 
@@ -1361,6 +1384,69 @@ function salvarEdicaoRegistro() {
   toast('Registro atualizado ✓');
 }
 
+// ===== REGISTROS =====
+function renderRegistros() {
+  // Popular filtro de projetos
+  const sel = document.getElementById('reg-filtro-proj');
+  if (sel) {
+    const projetosComReg = [...new Set(registros.map(r => r.projetoId))];
+    const valorAtual = sel.value;
+    sel.innerHTML = '<option value="">Todos os projetos</option>';
+    projetosComReg.forEach(pid => {
+      const proj = projetos.find(p => String(p.id) === String(pid));
+      if (proj) {
+        const o = document.createElement('option');
+        o.value = pid; o.textContent = proj.nome;
+        if (String(pid) === String(valorAtual)) o.selected = true;
+        sel.appendChild(o);
+      }
+    });
+  }
+
+  const filtroProj = sel ? sel.value : '';
+  const lista = document.getElementById('registros-lista');
+  if (!lista) return;
+
+  const regsFiltrados = [...registros]
+    .filter(r => !filtroProj || String(r.projetoId) === String(filtroProj))
+    .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+
+  if (regsFiltrados.length === 0) {
+    lista.innerHTML = '<div class="vazio"><div class="vi">📋</div><div>Nenhum registro encontrado</div></div>';
+    return;
+  }
+
+  lista.innerHTML = regsFiltrados.map(r => {
+    const proj = projetos.find(p => String(p.id) === String(r.projetoId));
+    const tarefasFeitas = (r.tarefas || []).filter(t => t.feita);
+    const tarefasTotal = (r.tarefas || []).length;
+    return `
+    <div class="pcard" style="border-left:3px solid ${r.ocorrencia ? 'var(--erro)' : 'var(--vc)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--vd)">${proj ? proj.nome : '—'}</div>
+          <div style="font-size:11px;color:var(--txts);margin-top:2px">${fmtData(r.data)} · 👥 ${(r.equipe||[]).join(', ')}</div>
+        </div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;background:var(--bge);padding:3px 8px;border-radius:20px">${r.progresso||0}%</span>
+      </div>
+      ${tarefasFeitas.length > 0 ? `
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;color:var(--txts);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Atividades realizadas</div>
+          ${tarefasFeitas.map(t => `<div style="font-size:12px;color:var(--txt);padding:3px 0;border-bottom:1px solid var(--bg);display:flex;align-items:center;gap:6px"><span style="color:var(--ok)">✓</span>${t.texto||t}</div>`).join('')}
+        </div>` : ''}
+      <div class="custo-grid" style="margin-bottom:10px">
+        <div class="custo-item"><div class="custo-lbl">Custo do dia</div><div class="custo-val">${fmtR(r.custoTotal)}</div></div>
+        <div class="custo-item"><div class="custo-lbl">Veículo</div><div class="custo-val">${r.veiculo||'—'}${r.veiculo2?'+'+r.veiculo2:''}</div></div>
+      </div>
+      ${r.ocorrencia ? `<div style="font-size:12px;color:var(--erro);background:#FDEDEC;border-radius:8px;padding:8px;margin-bottom:10px">⚠ ${r.ocorrencia}</div>` : ''}
+      <div class="acoes">
+        <button class="btn-acao" onclick="abrirEditarRegistro('${r.id}')">✏️ Editar</button>
+        <button class="btn-acao" style="color:var(--erro)" onclick="apagarRegistro('${r.id}')">🗑 Apagar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ===== GOOGLE CALENDAR API =====
 const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -1427,6 +1513,7 @@ window.abrirModal = abrirModal;
 window.fecharModal = fecharModal;
 window.salvarProjeto = salvarProjeto;
 window.verDetalhes = verDetalhes;
+window.renderRegistros = renderRegistros;
 window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.salvarMeta = salvarMeta;
 window.selecionarProjetoCampo = selecionarProjetoCampo;
