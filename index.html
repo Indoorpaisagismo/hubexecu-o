@@ -448,6 +448,33 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR PROJETO -->
+<div class="modal-ov" id="m-edit-proj">
+  <div class="modal">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-proj')">×</button>Editar projeto</div>
+    <input type="hidden" id="edit-proj-id">
+    <div class="campo-grupo"><label class="campo-lbl">Nome do cliente / projeto</label><input class="campo-inp" id="edit-proj-nome" type="text"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Tipo</label>
+      <select class="campo-sel" id="edit-proj-tipo">
+        <option value="execucao">Execução</option>
+        <option value="manutencao">Manutenção</option>
+        <option value="irrigacao">Irrigação</option>
+        <option value="lago">Lago</option>
+      </select>
+    </div>
+    <div class="campo-grupo"><label class="campo-lbl">Endereço / bairro</label><input class="campo-inp" id="edit-proj-end" type="text"></div>
+    <div class="campo-row" style="margin-bottom:16px">
+      <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Início</label><input class="campo-inp" id="edit-proj-ini" type="date"></div>
+      <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Previsão fim</label><input class="campo-inp" id="edit-proj-fim" type="date"></div>
+    </div>
+    <div class="campo-grupo"><label class="campo-lbl">Custo previsto total (R$)</label><input class="campo-inp" id="edit-proj-custo" type="number" step="0.01" min="0"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Valor do contrato (R$)</label><input class="campo-inp" id="edit-proj-contrato" type="number" step="0.01" min="0"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Tarefas do escopo (uma por linha)</label><textarea class="campo-ta" id="edit-proj-tarefas"></textarea></div>
+    <div class="campo-grupo"><label class="campo-lbl">Observações</label><textarea class="campo-ta" id="edit-proj-obs"></textarea></div>
+    <button class="btn-salvar" onclick="salvarEdicaoProjeto()">Salvar alterações</button>
+  </div>
+</div>
+
 <!-- MODAL EDITAR META -->
 <div class="modal-ov" id="m-edit-meta">
   <div class="modal">
@@ -519,7 +546,7 @@ async function fbDeletar(col,id) { try { await deleteDoc(doc(db,col,String(id)))
 async function fbAtualizarProjeto(id,dados) { try { await updateDoc(doc(db,'projetos',String(id)),dados); } catch(e){console.warn(e);} }
 
 function iniciarListeners() {
-  onSnapshot(collection(db,'projetos'), snap => { projetos = snap.docs.map(d=>d.data()); renderDash(); renderProjetos(); renderCampo(); renderMeta(); });
+  onSnapshot(collection(db,'projetos'), snap => { projetos = snap.docs.map(d=>d.data()); renderDash(); renderProjetos(); renderMeta(); renderCampo(); });
   onSnapshot(collection(db,'registros'), snap => { registros = snap.docs.map(d=>d.data()); renderDash(); });
   onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
 }
@@ -715,6 +742,7 @@ function renderProjetos() {
       </div>
       <div class="acoes">
         <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
+        <button class="btn-acao" onclick="confirmarPINProjeto('${p.id}')">✏️ Editar</button>
         <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');salvar();renderProjetos();toast('Arquivado');}">Arquivar</button>
       </div>
     </div>`;
@@ -862,15 +890,20 @@ function salvarMeta() {
 // ===== CAMPO =====
 function renderCampo() {
   // Preencher data com hoje por padrão
-  document.getElementById('c-data').value = hoje();
+  const dataInp = document.getElementById('c-data');
+  if (dataInp && !dataInp.value) dataInp.value = hoje();
 
   const sel = document.getElementById('c-select-proj');
+  if (!sel) return;
+  const valorAtual = sel.value; // preservar seleção atual
   sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
   projetos.filter(p => p.progresso < 100).forEach(p => {
     const o = document.createElement('option');
-    o.value = p.id; o.textContent = p.nome;
+    o.value = String(p.id); o.textContent = p.nome;
     sel.appendChild(o);
   });
+  // Restaurar seleção se ainda existir
+  if (valorAtual) sel.value = valorAtual;
 }
 
 function selecionarProjetoCampo() {
@@ -878,9 +911,15 @@ function selecionarProjetoCampo() {
   if (!id) {
     document.getElementById('c-form').style.display = 'none';
     document.getElementById('c-proj-nome').textContent = 'Selecione abaixo';
+    projCampo = null;
     return;
   }
-  projCampo = projetos.find(p => p.id === id);
+  // Comparar como string para garantir match com Firebase
+  projCampo = projetos.find(p => String(p.id) === String(id));
+  if (!projCampo) {
+    toast('Projeto não encontrado, aguarde carregar...');
+    return;
+  }
   document.getElementById('c-proj-nome').textContent = projCampo.nome;
   document.getElementById('c-prog-range').value = projCampo.progresso || 0;
   document.getElementById('c-prog-val').textContent = (projCampo.progresso || 0) + '%';
@@ -897,7 +936,14 @@ function selecionarProjetoCampo() {
       </div>`).join('');
   }
 
-  // Pré-preencher equipe da meta do dia se houver (não aplicável com qtd)
+  // Resetar equipe e veículos
+  document.querySelectorAll('#c-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
+  document.getElementById('c-veiculo').value = '';
+  document.getElementById('c-veiculo2').value = '';
+  document.getElementById('c-km').value = '0';
+  document.getElementById('c-km2').value = '0';
+  document.getElementById('c-marmitas').value = '0';
+  document.getElementById('c-extras-val').value = '0';
 
   document.getElementById('c-form').style.display = 'block';
   calcularCustoCampo();
@@ -1000,17 +1046,13 @@ function registrarCampo() {
   fbSalvarRegistro(reg);
   fbAtualizarProjeto(projCampo.id, { progresso: novoProgresso });
 
-  // 🗓 CALENDÁRIO: se chegou em 100%, agendar manutenção de entrega em 30 dias
+  // 🗓 CALENDÁRIO: se chegou em 100%, criar evento automaticamente via API
   if (novoProgresso >= 100) {
+    const nomeProj = projCampo.nome;
     const dtManutencao = new Date();
     dtManutencao.setDate(dtManutencao.getDate() + 30);
-    const dtStr = dtManutencao.toISOString().split('T')[0];
-    const [y,m,d] = dtStr.split('-');
-    const titulo = encodeURIComponent(`Manutenção de Entrega — ${projCampo.nome}`);
-    const dataGCal = `${y}${m}${d}`;
-    const url = `https://calendar.google.com/calendar/r/eventedit?text=${titulo}&dates=${dataGCal}/${dataGCal}&details=${encodeURIComponent('Manutenção de entrega 30 dias após conclusão da obra.')}`;
-    const ok = confirm(`🎉 Projeto concluído!\n\nDeseja agendar a Manutenção de Entrega para ${d}/${m}/${y}?\n\nIrá abrir o Google Calendar.`);
-    if (ok) window.open(url, '_blank');
+    const dtISO = dtManutencao.toISOString().split('T')[0];
+    agendarManutencao(nomeProj, dtISO);
   }
 
   toast('Registro enviado ✓');
@@ -1098,6 +1140,55 @@ function validarPIN() {
   }
   fecharModal('m-pin');
   if (acaoPendente) { window[acaoPendente](); acaoPendente = null; }
+}
+
+// ===== EDITAR PROJETO =====
+function confirmarPINProjeto(id) {
+  acaoPendente = 'abrirModalEditProj';
+  idParaApagar = id; // reutilizar variável para guardar o id
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
+}
+
+function abrirModalEditProj() {
+  const p = projetos.find(x => String(x.id) === String(idParaApagar));
+  if (!p) return;
+  document.getElementById('edit-proj-id').value = p.id;
+  document.getElementById('edit-proj-nome').value = p.nome || '';
+  document.getElementById('edit-proj-tipo').value = p.tipo || 'execucao';
+  document.getElementById('edit-proj-end').value = p.endereco || '';
+  document.getElementById('edit-proj-ini').value = p.inicio || '';
+  document.getElementById('edit-proj-fim').value = p.fim || '';
+  document.getElementById('edit-proj-custo').value = p.custoPrevisto || '';
+  document.getElementById('edit-proj-contrato').value = p.valorContrato || '';
+  document.getElementById('edit-proj-tarefas').value = (p.tarefas || []).join('\n');
+  document.getElementById('edit-proj-obs').value = p.obs || '';
+  abrirModal('m-edit-proj');
+}
+
+function salvarEdicaoProjeto() {
+  const id = document.getElementById('edit-proj-id').value;
+  const idx = projetos.findIndex(x => String(x.id) === String(id));
+  if (idx === -1) return;
+  const atualizado = {
+    ...projetos[idx],
+    nome: document.getElementById('edit-proj-nome').value.trim(),
+    tipo: document.getElementById('edit-proj-tipo').value,
+    endereco: document.getElementById('edit-proj-end').value.trim(),
+    inicio: document.getElementById('edit-proj-ini').value,
+    fim: document.getElementById('edit-proj-fim').value,
+    custoPrevisto: document.getElementById('edit-proj-custo').value,
+    valorContrato: document.getElementById('edit-proj-contrato').value,
+    tarefas: document.getElementById('edit-proj-tarefas').value.trim().split('\n').filter(t => t.trim()),
+    obs: document.getElementById('edit-proj-obs').value.trim()
+  };
+  projetos[idx] = atualizado;
+  fbSalvarProjeto(atualizado);
+  fecharModal('m-edit-proj');
+  renderProjetos();
+  renderDash();
+  toast('Projeto atualizado ✓');
 }
 
 // ===== EDITAR / APAGAR METAS =====
@@ -1220,6 +1311,66 @@ function salvarEdicaoRegistro() {
   toast('Registro atualizado ✓');
 }
 
+// ===== GOOGLE CALENDAR API =====
+const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const GCAL_TARGET = 'contato@indoorplantas.com.br';
+
+function agendarManutencao(nomeProj, dataISO) {
+  // Carregar o Google Identity Services se ainda não carregou
+  if (!window.google || !window.google.accounts) {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = () => agendarManutencao(nomeProj, dataISO);
+    document.head.appendChild(script);
+    return;
+  }
+
+  const client = window.google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    callback: async (resp) => {
+      if (resp.error) { console.warn('Auth erro:', resp.error); return; }
+      try {
+        const evento = {
+          summary: `🌿 Manutenção de Entrega — ${nomeProj}`,
+          description: 'Manutenção de entrega programada automaticamente pelo Hub de Execução INDOOR.',
+          start: { date: dataISO },
+          end:   { date: dataISO },
+          reminders: {
+            useDefault: false,
+            overrides: [
+              { method: 'email',  minutes: 24 * 60 },
+              { method: 'popup',  minutes: 60 }
+            ]
+          }
+        };
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_TARGET)}/events`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resp.access_token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(evento)
+          }
+        );
+        if (res.ok) {
+          const [y,m,d] = dataISO.split('-');
+          toast(`🗓 Manutenção agendada para ${d}/${m}/${y} ✓`);
+        } else {
+          console.warn('Erro Calendar:', await res.text());
+          toast('⚠ Erro ao agendar — verifique o console');
+        }
+      } catch(e) {
+        console.warn(e);
+      }
+    }
+  });
+  client.requestAccessToken();
+}
+
 // ===== INIT =====
 atualizarData();
 iniciarListeners();
@@ -1245,7 +1396,11 @@ window.abrirEditarRegistro = abrirEditarRegistro;
 window.salvarEdicaoRegistro = salvarEdicaoRegistro;
 window.apagarRegistro = apagarRegistro;
 window.executarApagar = executarApagar;
+window.confirmarPINProjeto = confirmarPINProjeto;
+window.abrirModalEditProj = abrirModalEditProj;
+window.salvarEdicaoProjeto = salvarEdicaoProjeto;
 window.fbDeletar = fbDeletar;
+window.agendarManutencao = agendarManutencao;
 </script>
 </script>
 </body>
