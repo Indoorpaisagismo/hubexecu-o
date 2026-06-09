@@ -546,9 +546,32 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ===== FIREBASE =====
-async function fbSalvarProjeto(p) { try { await setDoc(doc(db,'projetos',String(p.id)),p); } catch(e){console.warn(e);} }
-async function fbSalvarRegistro(r) { try { await setDoc(doc(db,'registros',String(r.id)),r); } catch(e){console.warn(e);} }
-async function fbSalvarMeta(m) { try { await setDoc(doc(db,'metas',String(m.id)),m); } catch(e){console.warn(e);} }
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwL7PlmRmEnnbfF4H-3q-q4F0OZ_zCk2ELO3E7Fc848pe5ClUhGjR2z1euaIvJyqFdC/exec';
+
+async function enviarSheets(tipo, dados) {
+  try {
+    const dadosLimpos = { tipo };
+    for (const [k, v] of Object.entries(dados)) {
+      if (Array.isArray(v)) dadosLimpos[k] = v.join('|');
+      else if (v !== null && v !== undefined) dadosLimpos[k] = String(v);
+    }
+    const payload = encodeURIComponent(JSON.stringify(dadosLimpos));
+    await fetch(`${SHEETS_URL}?dados=${payload}`, { mode: 'no-cors' });
+  } catch(e) { console.warn('Sheets:', e); }
+}
+
+async function fbSalvarProjeto(p) {
+  try { await setDoc(doc(db,'projetos',String(p.id)),p); } catch(e){console.warn(e);}
+  enviarSheets('projeto', p);
+}
+async function fbSalvarRegistro(r) {
+  try { await setDoc(doc(db,'registros',String(r.id)),r); } catch(e){console.warn(e);}
+  enviarSheets('registro', r);
+}
+async function fbSalvarMeta(m) {
+  try { await setDoc(doc(db,'metas',String(m.id)),m); } catch(e){console.warn(e);}
+  enviarSheets('meta', m);
+}
 async function fbDeletar(col,id) { try { await deleteDoc(doc(db,col,String(id))); } catch(e){console.warn(e);} }
 async function fbAtualizarProjeto(id,dados) { try { await updateDoc(doc(db,'projetos',String(id)),dados); } catch(e){console.warn(e);} }
 
