@@ -250,9 +250,13 @@
 
   <div class="campo-grupo">
     <label class="campo-lbl">Projeto</label>
-    <select class="campo-sel" id="meta-projeto">
-      <option value="">— Selecionar projeto —</option>
-    </select>
+    <div style="display:flex;gap:8px">
+      <select class="campo-sel" id="meta-projeto" style="flex:1">
+        <option value="">— Selecionar projeto —</option>
+      </select>
+      <button class="btn-acao p" style="flex-shrink:0;padding:12px 16px;border-radius:10px" onclick="confirmarProjetoMeta()">OK</button>
+    </div>
+    <div id="meta-projeto-confirmado" style="display:none;margin-top:8px;font-size:13px;color:var(--vm);font-weight:500"></div>
   </div>
 
   <div class="campo-grupo">
@@ -297,9 +301,12 @@
 
   <div class="campo-grupo">
     <label class="campo-lbl">Projeto em execução</label>
-    <select class="campo-sel" id="c-select-proj" onchange="selecionarProjetoCampo()">
-      <option value="">— Selecionar projeto —</option>
-    </select>
+    <div style="display:flex;gap:8px">
+      <select class="campo-sel" id="c-select-proj" style="flex:1" onchange="selecionarProjetoCampo()">
+        <option value="">— Selecionar projeto —</option>
+      </select>
+      <button class="btn-acao p" style="flex-shrink:0;padding:12px 16px;border-radius:10px" onclick="selecionarProjetoCampo()">OK</button>
+    </div>
   </div>
 
   <div id="c-form" style="display:none">
@@ -857,9 +864,22 @@ function renderMeta() {
   }
 }
 
+// ===== META DO DIA =====
+function confirmarProjetoMeta() {
+  const id = document.getElementById('meta-projeto').value;
+  if (!id) { toast('Selecione um projeto'); return; }
+  const proj = projetos.find(p => String(p.id) === String(id));
+  if (!proj) { setTimeout(confirmarProjetoMeta, 800); return; }
+  const conf = document.getElementById('meta-projeto-confirmado');
+  conf.textContent = '✓ ' + proj.nome;
+  conf.style.display = 'block';
+}
+
 function salvarMeta() {
   const projetoId = document.getElementById('meta-projeto').value;
   if (!projetoId) { toast('Selecione um projeto'); return; }
+  const proj = projetos.find(p => String(p.id) === String(projetoId));
+  if (!proj) { toast('Projeto não encontrado, tente novamente'); return; }
   const equipe = [];
   document.querySelectorAll('#meta-equipe-grid .eq-qtd').forEach(inp => {
     const qtd = parseInt(inp.value) || 0;
@@ -881,6 +901,7 @@ function salvarMeta() {
   fbSalvarMeta(meta);
   toast('Meta publicada ✓');
   document.getElementById('meta-projeto').value = '';
+  document.getElementById('meta-projeto-confirmado').style.display = 'none';
   document.getElementById('meta-tarefas').value = '';
   document.getElementById('meta-obs').value = '';
   document.querySelectorAll('#meta-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
@@ -914,12 +935,16 @@ function selecionarProjetoCampo() {
     projCampo = null;
     return;
   }
-  // Comparar como string para garantir match com Firebase
-  projCampo = projetos.find(p => String(p.id) === String(id));
+
+  // Tentar encontrar o projeto — comparar id como string e número
+  projCampo = projetos.find(p => String(p.id) === String(id)) || null;
+
+  // Se não encontrou ainda (Firebase ainda carregando), tentar de novo em 800ms
   if (!projCampo) {
-    toast('Projeto não encontrado, aguarde carregar...');
+    setTimeout(() => selecionarProjetoCampo(), 800);
     return;
   }
+
   document.getElementById('c-proj-nome').textContent = projCampo.nome;
   document.getElementById('c-prog-range').value = projCampo.progresso || 0;
   document.getElementById('c-prog-val').textContent = (projCampo.progresso || 0) + '%';
@@ -936,7 +961,7 @@ function selecionarProjetoCampo() {
       </div>`).join('');
   }
 
-  // Resetar equipe e veículos
+  // Resetar campos
   document.querySelectorAll('#c-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
   document.getElementById('c-veiculo').value = '';
   document.getElementById('c-veiculo2').value = '';
@@ -1396,6 +1421,7 @@ window.abrirEditarRegistro = abrirEditarRegistro;
 window.salvarEdicaoRegistro = salvarEdicaoRegistro;
 window.apagarRegistro = apagarRegistro;
 window.executarApagar = executarApagar;
+window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.confirmarPINProjeto = confirmarPINProjeto;
 window.abrirModalEditProj = abrirModalEditProj;
 window.salvarEdicaoProjeto = salvarEdicaoProjeto;
