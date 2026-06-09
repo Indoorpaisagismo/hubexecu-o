@@ -1151,18 +1151,40 @@ function salvarEdicaoMeta() {
   toast('Meta atualizada ✓');
 }
 
+let idParaApagar = null;
+let tipoParaApagar = null;
+
 function apagarMeta(id) {
-  acaoPendente = () => {
-    metas = metas.filter(x => x.id !== id);
-    salvar(); renderMeta(); renderDash();
-    toast('Meta apagada');
-  };
+  idParaApagar = id;
+  tipoParaApagar = 'meta';
   document.getElementById('pin-input').value = '';
   document.getElementById('pin-erro').style.display = 'none';
   abrirModal('m-pin');
+  acaoPendente = 'executarApagar';
 }
 
-// ===== EDITAR / APAGAR REGISTROS =====
+function apagarRegistro(id) {
+  idParaApagar = id;
+  tipoParaApagar = 'registro';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
+  acaoPendente = 'executarApagar';
+}
+
+function executarApagar() {
+  if (tipoParaApagar === 'meta') {
+    metas = metas.filter(x => x.id !== idParaApagar);
+    salvar(); renderMeta(); renderDash();
+    toast('Meta apagada');
+  } else if (tipoParaApagar === 'registro') {
+    registros = registros.filter(x => x.id !== idParaApagar);
+    salvar(); renderDash();
+    toast('Registro apagado');
+  }
+  idParaApagar = null;
+  tipoParaApagar = null;
+}
 function abrirEditarRegistro(id) {
   const r = registros.find(x => x.id === id);
   if (!r) return;
@@ -1190,17 +1212,6 @@ function salvarEdicaoRegistro() {
   fecharModal('m-edit-reg');
   renderDash();
   toast('Registro atualizado ✓');
-}
-
-function apagarRegistro(id) {
-  acaoPendente = () => {
-    registros = registros.filter(x => x.id !== id);
-    salvar(); renderDash();
-    toast('Registro apagado');
-  };
-  document.getElementById('pin-input').value = '';
-  document.getElementById('pin-erro').style.display = 'none';
-  abrirModal('m-pin');
 }
 
 // ===== INIT =====
