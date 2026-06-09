@@ -453,6 +453,22 @@ const CUSTO = {
 };
 const EQUIPE_VALS = {Gerente: 255.34, Encarregado: 220.68, Jardineiro: 172.11, Diarista: 110};
 
+// ===== GOOGLE SHEETS =====
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwL7PlmRmEnnbfF4H-3q-q4F0OZ_zCk2ELO3E7Fc848pe5ClUhGjR2z1euaIvJyqFdC/exec';
+
+async function enviarSheets(tipo, dados) {
+  try {
+    await fetch(SHEETS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo, ...dados })
+    });
+  } catch (err) {
+    console.warn('Sheets sync error:', err);
+  }
+}
+
 // ===== ESTADO =====
 let projetos = JSON.parse(localStorage.getItem('indoor_proj') || '[]');
 let registros = JSON.parse(localStorage.getItem('indoor_reg') || '[]');
@@ -664,6 +680,7 @@ function salvarProjeto() {
   };
   projetos.push(p);
   salvar();
+  enviarSheets('projeto', p);
   fecharModal('m-projeto');
   renderProjetos();
   toast('Projeto cadastrado ✓');
@@ -768,6 +785,7 @@ function salvarMeta() {
   };
   metas.push(meta);
   salvar();
+  enviarSheets('meta', { ...meta, projetoNome: (projetos.find(p => p.id === meta.projetoId) || {}).nome || '' });
   toast('Meta publicada ✓');
   document.getElementById('meta-projeto').value = '';
   document.getElementById('meta-tarefas').value = '';
@@ -913,6 +931,10 @@ function registrarCampo() {
   const idx = projetos.findIndex(p => p.id === projCampo.id);
   if (idx !== -1) projetos[idx].progresso = novoProgresso;
   salvar();
+  enviarSheets('registro', { ...reg, projetoNome: projCampo.nome });
+
+  // Atualizar progresso do projeto no Sheets também
+  if (idx !== -1) enviarSheets('projeto', projetos[idx]);
 
   // 🗓 CALENDÁRIO: se chegou em 100%, agendar manutenção de entrega em 30 dias
   if (novoProgresso >= 100) {
