@@ -903,6 +903,7 @@ function registrarCampo() {
   }));
 
   const dataApontamento = document.getElementById('c-data').value || hoje();
+  const novoProgresso = parseInt(document.getElementById('c-prog-range').value);
 
   const reg = {
     id: Date.now().toString(),
