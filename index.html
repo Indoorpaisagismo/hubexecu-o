@@ -167,7 +167,12 @@
   .vazio{text-align:center;padding:40px 20px;color:var(--txts);}
   .vi{font-size:40px;margin-bottom:10px;}
 
-  /* SEÇÕES COLAPSÁVEIS */
+  /* BOTÕES GESTOR */
+  .btn-gestor{background:none;border:none;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:6px;color:var(--txts);transition:background .2s;}
+  .btn-gestor:hover{background:var(--bge);}
+  .btn-gestor.del:hover{background:#FDEDEC;color:var(--erro);}
+  .acoes-gestor{display:flex;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bg);}
+
   .sec-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:0;cursor:pointer;margin-bottom:8px;}
   .sec-arrow{font-size:12px;color:var(--txts);transition:transform .2s;}
   .sec-arrow.open{transform:rotate(180deg);}
@@ -443,6 +448,52 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR META -->
+<div class="modal-ov" id="m-edit-meta">
+  <div class="modal">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-meta')">×</button>Editar meta</div>
+    <input type="hidden" id="edit-meta-id">
+    <div class="campo-grupo"><label class="campo-lbl">Projeto</label><select class="campo-sel" id="edit-meta-projeto"></select></div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">Equipe — quantidade por função</label>
+      <div class="equipe-grid" id="edit-meta-equipe-grid">
+        <div class="eq-item"><div><div class="eq-nome">Gerente</div><div class="eq-diaria">R$ 255,34/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Gerente" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-nome">Encarregado</div><div class="eq-diaria">R$ 220,68/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Encarregado" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-nome">Jardineiro</div><div class="eq-diaria">R$ 172,11/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Jardineiro" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-none">Diarista</div><div class="eq-diaria">R$ 110,00/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Diarista" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+      </div>
+    </div>
+    <div class="campo-grupo"><label class="campo-lbl">Tarefas (uma por linha)</label><textarea class="campo-ta" id="edit-meta-tarefas"></textarea></div>
+    <div class="campo-grupo"><label class="campo-lbl">Observações</label><input class="campo-inp" type="text" id="edit-meta-obs"></div>
+    <button class="btn-salvar" onclick="confirmarPIN('salvarEdicaoMeta')">Salvar alterações</button>
+  </div>
+</div>
+
+<!-- MODAL EDITAR REGISTRO -->
+<div class="modal-ov" id="m-edit-reg">
+  <div class="modal">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-reg')">×</button>Editar registro</div>
+    <input type="hidden" id="edit-reg-id">
+    <div class="campo-grupo"><label class="campo-lbl">Data</label><input class="campo-inp" type="date" id="edit-reg-data"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Ocorrência</label><textarea class="campo-ta" id="edit-reg-ocorrencia"></textarea></div>
+    <div class="campo-grupo"><label class="campo-lbl">Gastos extras (R$)</label><input class="campo-inp" type="number" id="edit-reg-extras" step="0.01" min="0"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Descrição do gasto extra</label><input class="campo-inp" type="text" id="edit-reg-extras-desc"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Progresso (%)</label><input class="campo-inp" type="number" id="edit-reg-progresso" min="0" max="100"></div>
+    <button class="btn-salvar" onclick="confirmarPIN('salvarEdicaoRegistro')">Salvar alterações</button>
+  </div>
+</div>
+
+<!-- MODAL PIN -->
+<div class="modal-ov" id="m-pin">
+  <div class="modal" style="padding-bottom:32px">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-pin')">×</button>🔒 Acesso gestor</div>
+    <div style="font-size:13px;color:var(--txts);margin-bottom:16px">Digite o PIN para continuar</div>
+    <input class="campo-inp" type="password" id="pin-input" inputmode="numeric" maxlength="4" placeholder="••••" style="font-size:24px;text-align:center;letter-spacing:8px">
+    <div style="font-size:12px;color:var(--erro);margin-top:8px;display:none" id="pin-erro">PIN incorreto</div>
+    <button class="btn-salvar" style="margin-top:16px" onclick="validarPIN()">Confirmar</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -624,6 +675,10 @@ function renderDash() {
           <div class="custo-item"><div class="custo-lbl">Progresso</div><div class="custo-val">${r.progresso||0}%</div></div>
         </div>
         ${r.ocorrencia ? `<div style="font-size:12px;color:var(--erro);margin-top:8px;background:#FDEDEC;border-radius:8px;padding:8px">⚠ ${r.ocorrencia}</div>` : ''}
+        <div class="acoes-gestor">
+          <button class="btn-gestor" onclick="abrirEditarRegistro('${r.id}')">✏️ Editar</button>
+          <button class="btn-gestor del" onclick="apagarRegistro('${r.id}')">🗑 Apagar</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -761,6 +816,10 @@ function renderMeta() {
         </div>
         ${(m.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
         ${m.obs?`<div class="md-obs">📝 ${m.obs}</div>`:''}
+        <div class="acoes-gestor">
+          <button class="btn-gestor" onclick="abrirEditarMeta('${m.id}')">✏️ Editar</button>
+          <button class="btn-gestor del" onclick="apagarMeta('${m.id}')">🗑 Apagar</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -1016,6 +1075,132 @@ function renderSemana() {
   const fim = new Date(seg); fim.setDate(seg.getDate()+5);
   document.getElementById('semana-tit').textContent =
     `Semana ${seg.getDate()}/${seg.getMonth()+1} — ${fim.getDate()}/${fim.getMonth()+1}`;
+}
+
+// ===== PIN & GESTOR =====
+const PIN_GESTOR = '9033';
+let acaoPendente = null;
+
+function confirmarPIN(acao) {
+  acaoPendente = acao;
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
+}
+
+function validarPIN() {
+  const pin = document.getElementById('pin-input').value;
+  if (pin !== PIN_GESTOR) {
+    document.getElementById('pin-erro').style.display = 'block';
+    return;
+  }
+  fecharModal('m-pin');
+  if (acaoPendente) { window[acaoPendente](); acaoPendente = null; }
+}
+
+// ===== EDITAR / APAGAR METAS =====
+function abrirEditarMeta(id) {
+  const m = metas.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('edit-meta-id').value = id;
+
+  // Preencher select projetos
+  const sel = document.getElementById('edit-meta-projeto');
+  sel.innerHTML = '';
+  projetos.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.nome;
+    if (p.id === m.projetoId) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  // Preencher equipe — parsear "2x Jardineiro" etc
+  document.querySelectorAll('#edit-meta-equipe-grid .eq-qtd').forEach(inp => {
+    inp.value = 0;
+    (m.equipe || []).forEach(e => {
+      const match = e.match(/^(\d+)x (.+)$/);
+      if (match && match[2] === inp.dataset.funcao) inp.value = parseInt(match[1]);
+    });
+  });
+
+  document.getElementById('edit-meta-tarefas').value = (m.tarefas || []).join('\n');
+  document.getElementById('edit-meta-obs').value = m.obs || '';
+  fecharModal('m-edit-meta');
+  confirmarPIN('abrirModalEditMeta');
+}
+
+function abrirModalEditMeta() { abrirModal('m-edit-meta'); }
+
+function salvarEdicaoMeta() {
+  const id = document.getElementById('edit-meta-id').value;
+  const idx = metas.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const equipe = [];
+  document.querySelectorAll('#edit-meta-equipe-grid .eq-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value) || 0;
+    if (qtd > 0) equipe.push(`${qtd}x ${inp.dataset.funcao}`);
+  });
+  metas[idx].projetoId = document.getElementById('edit-meta-projeto').value;
+  metas[idx].equipe = equipe;
+  metas[idx].tarefas = document.getElementById('edit-meta-tarefas').value.trim().split('\n').filter(t => t.trim());
+  metas[idx].obs = document.getElementById('edit-meta-obs').value.trim();
+  salvar();
+  fecharModal('m-edit-meta');
+  renderMeta();
+  renderDash();
+  toast('Meta atualizada ✓');
+}
+
+function apagarMeta(id) {
+  acaoPendente = () => {
+    metas = metas.filter(x => x.id !== id);
+    salvar(); renderMeta(); renderDash();
+    toast('Meta apagada');
+  };
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
+}
+
+// ===== EDITAR / APAGAR REGISTROS =====
+function abrirEditarRegistro(id) {
+  const r = registros.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('edit-reg-id').value = id;
+  document.getElementById('edit-reg-data').value = r.data || '';
+  document.getElementById('edit-reg-ocorrencia').value = r.ocorrencia || '';
+  document.getElementById('edit-reg-extras').value = r.gastoExtra || 0;
+  document.getElementById('edit-reg-extras-desc').value = r.gastoExtraDesc || '';
+  document.getElementById('edit-reg-progresso').value = r.progresso || 0;
+  confirmarPIN('abrirModalEditReg');
+}
+
+function abrirModalEditReg() { abrirModal('m-edit-reg'); }
+
+function salvarEdicaoRegistro() {
+  const id = document.getElementById('edit-reg-id').value;
+  const idx = registros.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  registros[idx].data = document.getElementById('edit-reg-data').value;
+  registros[idx].ocorrencia = document.getElementById('edit-reg-ocorrencia').value.trim();
+  registros[idx].gastoExtra = parseFloat(document.getElementById('edit-reg-extras').value) || 0;
+  registros[idx].gastoExtraDesc = document.getElementById('edit-reg-extras-desc').value.trim();
+  registros[idx].progresso = parseInt(document.getElementById('edit-reg-progresso').value) || 0;
+  salvar();
+  fecharModal('m-edit-reg');
+  renderDash();
+  toast('Registro atualizado ✓');
+}
+
+function apagarRegistro(id) {
+  acaoPendente = () => {
+    registros = registros.filter(x => x.id !== id);
+    salvar(); renderDash();
+    toast('Registro apagado');
+  };
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
 }
 
 // ===== INIT =====
