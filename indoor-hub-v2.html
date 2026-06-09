@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INDOOR · Hub de Execução</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --vd: #2C3E2D; --vm: #4A6741; --vc: #7A9E76;
+    --bg: #F5F0E8; --bge: #E8E0D0; --terra: #A67C52; --terrac: #C49A6C;
+    --branco: #FDFCF9; --txt: #1E2B1F; --txts: #6B7B6C;
+    --erro: #C0392B; --ok: #27AE60; --alerta: #E67E22;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:80px;}
+
+  /* HEADER */
+  .hdr{background:var(--vd);padding:16px 20px 0;position:sticky;top:0;z-index:100;}
+  .hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .logo{font-size:13px;font-weight:600;letter-spacing:2px;color:var(--terrac);text-transform:uppercase;}
+  .data-txt{font-family:'DM Mono',monospace;font-size:11px;color:var(--vc);}
+  .hdr-sub{font-size:18px;font-weight:300;color:var(--branco);letter-spacing:-0.3px;margin-bottom:10px;}
+  .nav{display:flex;border-top:1px solid rgba(255,255,255,0.08);overflow-x:auto;}
+  .nb{flex:1;min-width:60px;padding:10px 4px;background:none;border:none;color:var(--vc);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+  .nb.ativo{color:var(--terrac);border-bottom-color:var(--terrac);}
+
+  /* ABAS */
+  .aba{display:none;padding:20px;}
+  .aba.ativo{display:block;}
+
+  /* TÍTULOS */
+  .stit{font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--txts);margin-bottom:12px;}
+
+  /* GRID RESUMO */
+  .rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+  .rcard{background:var(--branco);border-radius:12px;padding:14px 10px;border-left:3px solid var(--vc);text-align:center;}
+  .rcard.al{border-left-color:var(--alerta);}
+  .rcard.ok{border-left-color:var(--ok);}
+  .rnum{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;color:var(--vd);line-height:1;}
+  .rlbl{font-size:10px;color:var(--txts);margin-top:3px;line-height:1.2;}
+
+  /* CARD EQUIPE */
+  .eqcard{background:var(--vd);border-radius:14px;padding:16px;margin-bottom:20px;color:var(--branco);}
+  .eqlbl{font-size:11px;color:var(--vc);letter-spacing:1px;margin-bottom:4px;}
+  .eqval{font-size:16px;font-weight:600;}
+  .eqdet{font-size:12px;color:var(--vc);margin-top:2px;}
+
+  /* PROGRESSO */
+  .ptrilha{height:8px;background:var(--bge);border-radius:4px;overflow:hidden;}
+  .pbarra{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--vm),var(--vc));position:relative;transition:width .6s;}
+  .pbarra::after{content:'🌿';position:absolute;right:-4px;top:-6px;font-size:14px;}
+  .pbarra.atrasado{background:linear-gradient(90deg,var(--alerta),#F39C12);}
+  .pbarra.completo{background:linear-gradient(90deg,var(--ok),#52BE80);}
+
+  /* PROJETOS CARDS */
+  .pcard{background:var(--branco);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--bge);}
+  .pch{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .pnome{font-size:15px;font-weight:600;color:var(--vd);}
+  .ptag{font-size:10px;font-weight:500;padding:3px 8px;border-radius:20px;background:var(--bge);color:var(--txts);}
+  .ptag.exec{background:#FFF3E0;color:var(--terra);}
+  .ptag.man{background:#E8F4E8;color:var(--vm);}
+  .ptag.irrigacao{background:#E3F2FD;color:#1565C0;}
+  .ptag.lago{background:#E8EAF6;color:#3949AB;}
+  .plbl{display:flex;justify-content:space-between;font-size:11px;color:var(--txts);margin-bottom:5px;}
+  .pmeta{font-size:12px;color:var(--txts);margin-top:6px;}
+
+  /* CUSTOS */
+  .custo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+  .custo-item{background:var(--bg);border-radius:8px;padding:10px 12px;}
+  .custo-lbl{font-size:10px;color:var(--txts);margin-bottom:2px;}
+  .custo-val{font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:var(--vd);}
+  .custo-item.destaque{background:var(--vd);color:var(--branco);}
+  .custo-item.destaque .custo-lbl{color:var(--vc);}
+  .custo-item.destaque .custo-val{color:var(--branco);}
+  .custo-item.alerta{background:#FFF3E0;}
+  .custo-item.alerta .custo-val{color:var(--alerta);}
+
+  /* ACOES */
+  .acoes{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--bg);}
+  .btn-acao{flex:1;padding:8px;border-radius:8px;border:1px solid var(--bge);background:var(--bg);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;color:var(--txt);}
+  .btn-acao.p{background:var(--vd);color:var(--branco);border-color:var(--vd);}
+
+  /* META DIÁRIA */
+  .meta-card{background:var(--branco);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--bge);}
+  .meta-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bg);}
+  .meta-item:last-child{border-bottom:none;}
+  .mstatus{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+  .mstatus.ok{background:#E8F4E8;color:var(--ok);}
+  .mstatus.pend{background:var(--bge);color:var(--txts);}
+  .mstatus.prob{background:#FDEDEC;color:var(--erro);}
+  .mtxt{font-size:13px;flex:1;}
+  .mproj{font-size:10px;color:var(--txts);}
+
+  /* FORMS */
+  .campo-grupo{margin-bottom:16px;}
+  .campo-lbl{font-size:12px;font-weight:500;color:var(--txts);margin-bottom:6px;display:block;}
+  .campo-inp,.campo-sel,.campo-ta{width:100%;padding:12px 14px;border:1.5px solid var(--bge);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--txt);background:var(--branco);outline:none;transition:border-color .2s;}
+  .campo-inp:focus,.campo-sel:focus,.campo-ta:focus{border-color:var(--vm);}
+  .campo-ta{resize:vertical;min-height:70px;}
+  .campo-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  /* BOTÕES */
+  .btn-novo{width:100%;padding:14px;background:var(--vd);color:var(--branco);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;margin-bottom:20px;}
+  .btn-salvar{width:100%;padding:16px;background:var(--vd);color:var(--branco);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;}
+  .btn-campo{width:100%;padding:16px;background:var(--terra);color:var(--branco);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:16px;}
+  .btn-meta{width:100%;padding:16px;background:var(--vm);color:var(--branco);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;}
+
+  /* MODAL */
+  .modal-ov{display:none;position:fixed;inset:0;background:rgba(30,43,31,.7);z-index:200;align-items:flex-end;}
+  .modal-ov.aberto{display:flex;}
+  .modal{background:var(--branco);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:24px 20px;animation:slideUp .25s ease;}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-tit{font-size:18px;font-weight:600;color:var(--vd);margin-bottom:20px;}
+  .mfechar{float:right;background:var(--bge);border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;color:var(--txts);}
+
+  /* EQUIPE CHECKBOXES */
+  .equipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
+  .eq-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg);border-radius:8px;padding:10px 12px;cursor:default;}
+  .eq-item input[type="number"]{flex-shrink:0;}
+  .eq-item input[type="checkbox"]{width:18px;height:18px;accent-color:var(--vm);cursor:pointer;flex-shrink:0;}
+  .eq-nome{font-size:13px;}
+  .eq-diaria{font-size:11px;color:var(--txts);}
+
+  /* TAREFAS */
+  .tarefa-item{display:flex;align-items:center;gap:10px;background:var(--branco);border-radius:12px;padding:14px;margin-bottom:8px;border:1px solid var(--bge);}
+  .tchk{width:22px;height:22px;border-radius:6px;border:2px solid var(--bge);appearance:none;-webkit-appearance:none;cursor:pointer;background:var(--branco);flex-shrink:0;transition:all .2s;}
+  .tchk:checked{background:var(--vm);border-color:var(--vm);background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:12px;}
+  .ttxt{font-size:14px;flex:1;}
+
+  /* SEMANA */
+  .diacard{background:var(--branco);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--bge);}
+  .diacard.hoje{border-left:3px solid var(--terra);}
+  .diah{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .dianome{font-size:13px;font-weight:600;color:var(--vd);}
+  .diacard.hoje .dianome{color:var(--terra);}
+  .diadta{font-family:'DM Mono',monospace;font-size:11px;color:var(--txts);}
+  .diatarefa{font-size:12px;color:var(--txts);padding:4px 0;border-bottom:1px solid var(--bg);display:flex;align-items:center;gap:5px;}
+  .diatarefa:last-child{border-bottom:none;}
+  .diatarefa::before{content:'·';color:var(--vc);font-size:18px;line-height:1;}
+
+  /* INFO CAMPO */
+  .campo-info{background:var(--vd);border-radius:14px;padding:16px;margin-bottom:20px;color:var(--branco);}
+  .ci-lbl{font-size:11px;color:var(--vc);letter-spacing:1px;margin-bottom:4px;}
+  .ci-val{font-size:16px;font-weight:600;}
+
+  /* CUSTO PREVIEW */
+  .custo-preview{background:linear-gradient(135deg,var(--vd),var(--vm));border-radius:14px;padding:16px;margin:16px 0;color:var(--branco);}
+  .cp-tit{font-size:11px;color:var(--vc);letter-spacing:1px;margin-bottom:12px;}
+  .cp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .cp-item{background:rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;}
+  .cp-lbl{font-size:10px;color:rgba(255,255,255,.7);margin-bottom:2px;}
+  .cp-val{font-family:'DM Mono',monospace;font-size:14px;font-weight:500;}
+  .cp-total{grid-column:1/-1;background:rgba(255,255,255,.2);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;}
+  .cp-total-lbl{font-size:12px;font-weight:600;}
+  .cp-total-val{font-family:'DM Mono',monospace;font-size:18px;font-weight:600;}
+
+  /* OCORRENCIA */
+  .oc-form{background:#FDEDEC;border-radius:14px;padding:16px;margin-top:16px;border:1px solid #F5B7B1;}
+  .oc-tit{font-size:13px;font-weight:600;color:var(--erro);margin-bottom:10px;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--vd);color:var(--branco);padding:12px 20px;border-radius:30px;font-size:13px;font-weight:500;opacity:0;transition:all .3s;z-index:300;white-space:nowrap;}
+  .toast.v{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* VAZIO */
+  .vazio{text-align:center;padding:40px 20px;color:var(--txts);}
+  .vi{font-size:40px;margin-bottom:10px;}
+
+  /* SEÇÕES COLAPSÁVEIS */
+  .sec-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:0;cursor:pointer;margin-bottom:8px;}
+  .sec-arrow{font-size:12px;color:var(--txts);transition:transform .2s;}
+  .sec-arrow.open{transform:rotate(180deg);}
+  .sec-body{display:none;}
+  .sec-body.open{display:block;}
+
+  /* BADGE */
+  .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;margin-left:6px;}
+  .badge.verde{background:#E8F4E8;color:var(--vm);}
+  .badge.alerta{background:#FFF3E0;color:var(--alerta);}
+  .badge.erro{background:#FDEDEC;color:var(--erro);}
+
+  /* META DIÁRIA PAINEL */
+  .md-card{background:var(--branco);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--bge);}
+  .md-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+  .md-projeto{font-size:15px;font-weight:600;color:var(--vd);}
+  .md-equipe{font-size:12px;color:var(--txts);margin-top:2px;}
+  .md-tarefa{font-size:13px;color:var(--txt);padding:6px 0;border-bottom:1px solid var(--bg);display:flex;align-items:center;gap:8px;}
+  .md-tarefa:last-child{border-bottom:none;}
+  .md-tarefa::before{content:'→';color:var(--vc);font-size:12px;}
+  .md-obs{font-size:12px;color:var(--txts);background:var(--bg);border-radius:8px;padding:10px;margin-top:8px;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <span class="logo">INDOOR</span>
+    <span class="data-txt" id="dataAtual"></span>
+  </div>
+  <div class="hdr-sub">Hub de Execução</div>
+  <div class="nav">
+    <button class="nb ativo" onclick="mudarAba('dashboard',this)">Dashboard</button>
+    <button class="nb" onclick="mudarAba('projetos',this)">Projetos</button>
+    <button class="nb" onclick="mudarAba('meta',this)">Meta do Dia</button>
+    <button class="nb" onclick="mudarAba('campo',this)">Campo</button>
+    <button class="nb" onclick="mudarAba('semana',this)">Semana</button>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div class="aba ativo" id="aba-dashboard">
+  <div class="rgrid">
+    <div class="rcard"><div class="rnum" id="d-total">0</div><div class="rlbl">Projetos ativos</div></div>
+    <div class="rcard al"><div class="rnum" id="d-atrasados">0</div><div class="rlbl">Em atraso</div></div>
+    <div class="rcard ok"><div class="rnum" id="d-concluidos">0</div><div class="rlbl">Concluídos</div></div>
+  </div>
+
+  <div class="eqcard">
+    <div class="eqlbl">EQUIPE HOJE</div>
+    <div class="eqval" id="d-eq-local">—</div>
+    <div class="eqdet" id="d-eq-det">—</div>
+  </div>
+
+  <div class="stit">Projetos em andamento</div>
+  <div id="d-projetos"></div>
+
+  <div class="stit" style="margin-top:20px">Meta do dia</div>
+  <div id="d-meta-hoje"></div>
+
+  <div class="stit" style="margin-top:20px">Registros de campo hoje</div>
+  <div id="d-registros-hoje"></div>
+</div>
+
+<!-- ===== PROJETOS ===== -->
+<div class="aba" id="aba-projetos">
+  <button class="btn-novo" onclick="abrirModal('m-projeto')">+ Novo projeto</button>
+  <div class="stit">Todos os projetos</div>
+  <div id="p-lista"></div>
+</div>
+
+<!-- ===== META DO DIA ===== -->
+<div class="aba" id="aba-meta">
+  <div class="stit">Planejar meta de hoje</div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Projeto</label>
+    <select class="campo-sel" id="meta-projeto">
+      <option value="">— Selecionar projeto —</option>
+    </select>
+  </div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Equipe — quantidade por função</label>
+    <div class="equipe-grid" id="meta-equipe-grid">
+      <div class="eq-item"><div><div class="eq-nome">Gerente</div><div class="eq-diaria">R$ 255,34/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Gerente" data-diaria="255.34" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+      <div class="eq-item"><div><div class="eq-nome">Encarregado</div><div class="eq-diaria">R$ 220,68/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Encarregado" data-diaria="220.68" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+      <div class="eq-item"><div><div class="eq-nome">Jardineiro</div><div class="eq-diaria">R$ 172,11/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Jardineiro" data-diaria="172.11" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+      <div class="eq-item"><div><div class="eq-nome">Diarista</div><div class="eq-diaria">R$ 110,00/dia</div></div><input type="number" min="0" max="10" value="0" data-funcao="Diarista" data-diaria="110" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+    </div>
+  </div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Metas do dia (uma por linha)</label>
+    <textarea class="campo-ta" id="meta-tarefas" placeholder="Ex:&#10;Terminar de encher as floreiras&#10;Plantar as Carpentarias&#10;Travar as Carpentarias&#10;Regar todas as palmeiras"></textarea>
+  </div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Observações</label>
+    <input class="campo-inp" type="text" id="meta-obs" placeholder="Ex: Meio período, levar equipamento X...">
+  </div>
+
+  <button class="btn-meta" onclick="salvarMeta()">Publicar meta do dia</button>
+
+  <div style="margin-top:24px">
+    <div class="stit">Histórico de metas</div>
+    <div id="meta-historico"></div>
+  </div>
+</div>
+
+<!-- ===== CAMPO ===== -->
+<div class="aba" id="aba-campo">
+  <div class="campo-info">
+    <div class="ci-lbl">PROJETO DE HOJE</div>
+    <div class="ci-val" id="c-proj-nome">Selecione abaixo</div>
+  </div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Data do apontamento</label>
+    <input class="campo-inp" type="date" id="c-data">
+  </div>
+
+  <div class="campo-grupo">
+    <label class="campo-lbl">Projeto em execução</label>
+    <select class="campo-sel" id="c-select-proj" onchange="selecionarProjetoCampo()">
+      <option value="">— Selecionar projeto —</option>
+    </select>
+  </div>
+
+  <div id="c-form" style="display:none">
+
+    <!-- EQUIPE -->
+    <div class="campo-grupo">
+      <label class="campo-lbl">Equipe presente hoje — quantidade</label>
+      <div class="equipe-grid" id="c-equipe-grid">
+        <div class="eq-item"><div><div class="eq-nome">Gerente</div><div class="eq-diaria">R$ 255,34</div></div><input type="number" min="0" max="10" value="0" data-funcao="Gerente" data-diaria="255.34" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center" oninput="calcularCustoCampo()"></div>
+        <div class="eq-item"><div><div class="eq-nome">Encarregado</div><div class="eq-diaria">R$ 220,68</div></div><input type="number" min="0" max="10" value="0" data-funcao="Encarregado" data-diaria="220.68" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center" oninput="calcularCustoCampo()"></div>
+        <div class="eq-item"><div><div class="eq-nome">Jardineiro</div><div class="eq-diaria">R$ 172,11</div></div><input type="number" min="0" max="10" value="0" data-funcao="Jardineiro" data-diaria="172.11" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center" oninput="calcularCustoCampo()"></div>
+        <div class="eq-item"><div><div class="eq-nome">Diarista</div><div class="eq-diaria">R$ 110,00</div></div><input type="number" min="0" max="10" value="0" data-funcao="Diarista" data-diaria="110" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center" oninput="calcularCustoCampo()"></div>
+      </div>
+    </div>
+
+    <!-- ALIMENTAÇÃO -->
+    <div class="campo-grupo">
+      <label class="campo-lbl">Alimentação</label>
+      <div class="campo-row">
+        <div><label class="campo-lbl" style="font-size:11px">Nº marmitas</label><input class="campo-inp" type="number" id="c-marmitas" min="0" value="0" oninput="calcularCustoCampo()"></div>
+        <div><label class="campo-lbl" style="font-size:11px">R$ por marmita</label><input class="campo-inp" type="number" id="c-vlr-marmita" min="0" step="0.01" value="20" oninput="calcularCustoCampo()"></div>
+      </div>
+    </div>
+
+    <!-- VEÍCULOS -->
+    <div class="campo-grupo">
+      <label class="campo-lbl">Veículos utilizados</label>
+      <div class="campo-row" style="margin-bottom:8px">
+        <div>
+          <label class="campo-lbl" style="font-size:11px">Veículo 1</label>
+          <select class="campo-sel" id="c-veiculo" onchange="calcularCustoCampo()">
+            <option value="">— Nenhum —</option>
+            <option value="Ducato">Ducato</option>
+            <option value="Uno">Uno</option>
+            <option value="Siena">Siena</option>
+            <option value="Toro">Toro</option>
+            <option value="Civic">Civic</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="campo-lbl" style="font-size:11px">KM rodado</label>
+          <input class="campo-inp" type="number" id="c-km" min="0" value="0" oninput="calcularCustoCampo()">
+        </div>
+      </div>
+      <div class="campo-row">
+        <div>
+          <label class="campo-lbl" style="font-size:11px">Veículo 2 (opcional)</label>
+          <select class="campo-sel" id="c-veiculo2" onchange="calcularCustoCampo()">
+            <option value="">— Nenhum —</option>
+            <option value="Ducato">Ducato</option>
+            <option value="Uno">Uno</option>
+            <option value="Siena">Siena</option>
+            <option value="Toro">Toro</option>
+            <option value="Civic">Civic</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="campo-lbl" style="font-size:11px">KM rodado</label>
+          <input class="campo-inp" type="number" id="c-km2" min="0" value="0" oninput="calcularCustoCampo()">
+        </div>
+      </div>
+    </div>
+
+    <!-- PREVIEW CUSTO -->
+    <div class="custo-preview">
+      <div class="cp-tit">CUSTO DO DIA — CALCULADO AUTOMATICAMENTE</div>
+      <div class="cp-grid">
+        <div class="cp-item"><div class="cp-lbl">Mão de obra</div><div class="cp-val" id="cp-mo">R$ 0,00</div></div>
+        <div class="cp-item"><div class="cp-lbl">Alimentação</div><div class="cp-val" id="cp-ali">R$ 0,00</div></div>
+        <div class="cp-item"><div class="cp-lbl">Veículo (fixo)</div><div class="cp-val" id="cp-vfix">R$ 0,00</div></div>
+        <div class="cp-item"><div class="cp-lbl">Combustível (km)</div><div class="cp-val" id="cp-comb">R$ 0,00</div></div>
+        <div class="cp-item"><div class="cp-lbl">Equip/Ferramentas</div><div class="cp-val">R$ 43,76</div></div>
+        <div class="cp-item"><div class="cp-lbl">Vale Transporte</div><div class="cp-val" id="cp-vt">R$ 0,00</div></div>
+        <div class="cp-total"><span class="cp-total-lbl">TOTAL DO DIA</span><span class="cp-total-val" id="cp-total">R$ 0,00</span></div>
+      </div>
+    </div>
+
+    <!-- TAREFAS -->
+    <div class="stit">Tarefas — marcar concluídas</div>
+    <div id="c-tarefas"></div>
+
+    <!-- OCORRÊNCIA -->
+    <div class="oc-form">
+      <div class="oc-tit">⚠ Registrar ocorrência</div>
+      <textarea class="campo-ta" id="c-ocorrencia" placeholder="Descreva o problema encontrado em campo..."></textarea>
+    </div>
+
+    <!-- GASTOS EXTRAS -->
+    <div class="campo-grupo" style="margin-top:16px">
+      <label class="campo-lbl">Gastos extras (R$)</label>
+      <div class="campo-row">
+        <input class="campo-inp" type="number" id="c-extras-val" min="0" step="0.01" value="0" oninput="calcularCustoCampo()" placeholder="Valor">
+        <input class="campo-inp" type="text" id="c-extras-desc" placeholder="Descrição">
+      </div>
+    </div>
+
+    <!-- PROGRESSO -->
+    <div class="campo-grupo">
+      <label class="campo-lbl">Atualizar % de conclusão do projeto</label>
+      <input type="range" min="0" max="100" step="5" id="c-prog-range" style="width:100%;accent-color:var(--vm);" oninput="document.getElementById('c-prog-val').textContent=this.value+'%'">
+      <div style="text-align:center;font-family:'DM Mono',monospace;font-size:18px;color:var(--vd);margin-top:6px" id="c-prog-val">50%</div>
+    </div>
+
+    <button class="btn-campo" onclick="registrarCampo()">Enviar registro do dia</button>
+  </div>
+</div>
+
+<!-- ===== SEMANA ===== -->
+<div class="aba" id="aba-semana">
+  <div class="stit" id="semana-tit">Semana atual</div>
+  <div id="semana-grid"></div>
+</div>
+
+<!-- ===== MODAL PROJETO ===== -->
+<div class="modal-ov" id="m-projeto">
+  <div class="modal">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-projeto')">×</button>Novo projeto</div>
+    <div class="campo-grupo"><label class="campo-lbl">Nome do cliente / projeto</label><input class="campo-inp" id="pj-nome" type="text" placeholder="Ex: Residência Silva"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Tipo</label><select class="campo-sel" id="pj-tipo"><option value="execucao">Execução</option><option value="manutencao">Manutenção</option><option value="irrigacao">Irrigação</option><option value="lago">Lago</option></select></div>
+    <div class="campo-grupo"><label class="campo-lbl">Endereço / bairro</label><input class="campo-inp" id="pj-end" type="text" placeholder="Bairro, cidade"></div>
+    <div class="campo-row" style="margin-bottom:16px">
+      <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Início</label><input class="campo-inp" id="pj-ini" type="date"></div>
+      <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Previsão fim</label><input class="campo-inp" id="pj-fim" type="date"></div>
+    </div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">Custo previsto total (R$)</label>
+      <input class="campo-inp" id="pj-custo-prev" type="number" step="0.01" min="0" placeholder="Ex: 15000">
+    </div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">Valor do contrato (R$)</label>
+      <input class="campo-inp" id="pj-contrato" type="number" step="0.01" min="0" placeholder="Ex: 25000">
+    </div>
+    <div class="campo-grupo"><label class="campo-lbl">Tarefas do escopo (uma por linha)</label><textarea class="campo-ta" id="pj-tarefas" placeholder="Ex:&#10;Instalar irrigação&#10;Plantar espécies do projeto&#10;Acabamento com brita"></textarea></div>
+    <div class="campo-grupo"><label class="campo-lbl">Observações</label><textarea class="campo-ta" id="pj-obs" placeholder="Notas importantes..."></textarea></div>
+    <button class="btn-salvar" onclick="salvarProjeto()">Salvar projeto</button>
+  </div>
+</div>
+
+<!-- ===== MODAL DETALHE ===== -->
+<div class="modal-ov" id="m-detalhe">
+  <div class="modal">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-detalhe')">×</button><span id="det-tit"></span></div>
+    <div id="det-corpo"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== CONSTANTES =====
+const CUSTO = {
+  gerente: 255.34, encarregado: 220.68, jardineiro: 172.11, diarista: 110,
+  vt: 11.5, equip: 43.76, veic_fixo: 72.89, km: 6.40
+};
+const EQUIPE_VALS = {Gerente: 255.34, Encarregado: 220.68, Jardineiro: 172.11, Diarista: 110};
+
+// ===== ESTADO =====
+let projetos = JSON.parse(localStorage.getItem('indoor_proj') || '[]');
+let registros = JSON.parse(localStorage.getItem('indoor_reg') || '[]');
+let metas = JSON.parse(localStorage.getItem('indoor_metas') || '[]');
+let projCampo = null;
+
+function salvar() {
+  localStorage.setItem('indoor_proj', JSON.stringify(projetos));
+  localStorage.setItem('indoor_reg', JSON.stringify(registros));
+  localStorage.setItem('indoor_metas', JSON.stringify(metas));
+}
+
+// ===== UTILS =====
+function toast(m) {
+  const t = document.getElementById('toast');
+  t.textContent = m; t.classList.add('v');
+  setTimeout(() => t.classList.remove('v'), 2500);
+}
+function hoje() { return new Date().toISOString().split('T')[0]; }
+function fmtData(s) { if (!s) return '—'; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+function fmtR(v) { return 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function diasR(fim) { if (!fim) return null; return Math.ceil((new Date(fim)-new Date())/(86400000)); }
+function statusP(p) { if (p.progresso>=100) return 'completo'; const d=diasR(p.fim); if (d!==null&&d<0) return 'atrasado'; return ''; }
+
+function tipoLabel(t) {
+  const m = {execucao:'Execução',manutencao:'Manutenção',irrigacao:'Irrigação',lago:'Lago'};
+  return m[t] || t;
+}
+function tipoClass(t) {
+  const m = {execucao:'exec',manutencao:'man',irrigacao:'irrigacao',lago:'lago'};
+  return m[t] || '';
+}
+function custoAcumulado(projetoId) {
+  return registros.filter(r => r.projetoId === projetoId).reduce((s, r) => s + (r.custoTotal || 0), 0);
+}
+
+// ===== ABAS =====
+function mudarAba(aba, btn) {
+  document.querySelectorAll('.aba').forEach(a => a.classList.remove('ativo'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('ativo'));
+  document.getElementById('aba-'+aba).classList.add('ativo');
+  btn.classList.add('ativo');
+  if (aba==='dashboard') renderDash();
+  if (aba==='projetos') renderProjetos();
+  if (aba==='campo') renderCampo();
+  if (aba==='semana') renderSemana();
+  if (aba==='meta') renderMeta();
+}
+
+// ===== DATA =====
+function atualizarData() {
+  const a = new Date();
+  document.getElementById('dataAtual').textContent = a.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+}
+
+// ===== DASHBOARD =====
+function renderDash() {
+  const ativos = projetos.filter(p => p.progresso < 100);
+  const atrasados = projetos.filter(p => p.progresso < 100 && diasR(p.fim) !== null && diasR(p.fim) < 0);
+  const concluidos = projetos.filter(p => p.progresso >= 100);
+
+  document.getElementById('d-total').textContent = ativos.length;
+  document.getElementById('d-atrasados').textContent = atrasados.length;
+  document.getElementById('d-concluidos').textContent = concluidos.length;
+
+  // Equipe hoje — pega meta do dia se houver
+  const metaHoje = metas.filter(m => m.data === hoje()).slice(-1)[0];
+  if (metaHoje) {
+    const proj = projetos.find(p => p.id === metaHoje.projetoId);
+    document.getElementById('d-eq-local').textContent = proj ? proj.nome : 'Projeto não encontrado';
+    document.getElementById('d-eq-det').textContent = (metaHoje.equipe || []).join(', ') || '—';
+  } else if (ativos.length > 0) {
+    document.getElementById('d-eq-local').textContent = ativos[0].nome;
+    document.getElementById('d-eq-det').textContent = ativos[0].endereco || '—';
+  } else {
+    document.getElementById('d-eq-local').textContent = 'Nenhum projeto ativo';
+    document.getElementById('d-eq-det').textContent = '—';
+  }
+
+  // Projetos com custos
+  const lista = document.getElementById('d-projetos');
+  if (ativos.length === 0) {
+    lista.innerHTML = '<div class="vazio"><div class="vi">🌱</div><div>Nenhum projeto ativo</div></div>';
+  } else {
+    lista.innerHTML = ativos.map(p => {
+      const st = statusP(p);
+      const d = diasR(p.fim);
+      const dTxt = d === null ? '' : d < 0
+        ? `<span style="color:var(--erro)">⚠ ${Math.abs(d)}d em atraso</span>`
+        : `${d}d restantes`;
+      const acum = custoAcumulado(p.id);
+      const prev = parseFloat(p.custoPrevisto) || 0;
+      const pctCusto = prev > 0 ? Math.min(100, Math.round(acum/prev*100)) : null;
+      const sobreCusto = prev > 0 && acum > prev;
+      return `
+      <div class="pcard">
+        <div class="pch">
+          <div class="pnome">${p.nome}</div>
+          <span class="ptag ${tipoClass(p.tipo)}">${tipoLabel(p.tipo)}</span>
+        </div>
+        <div class="plbl"><span>Conclusão</span><span>${p.progresso||0}%</span></div>
+        <div class="ptrilha"><div class="pbarra ${st}" style="width:${p.progresso||0}%"></div></div>
+        <div class="pmeta" style="margin-top:6px">${dTxt}</div>
+        <div class="custo-grid" style="margin-top:12px">
+          <div class="custo-item"><div class="custo-lbl">Custo previsto</div><div class="custo-val">${prev > 0 ? fmtR(prev) : '—'}</div></div>
+          <div class="custo-item ${sobreCusto?'alerta':''}"><div class="custo-lbl">Custo realizado</div><div class="custo-val">${fmtR(acum)}</div></div>
+          ${pctCusto !== null ? `<div class="custo-item destaque" style="grid-column:1/-1"><div class="custo-lbl">Orçamento consumido</div><div class="custo-val">${pctCusto}%${sobreCusto?' ⚠ Acima do orçamento':''}</div></div>` : ''}
+        </div>
+        <div class="acoes">
+          <button class="btn-acao" onclick="verDetalhes('${p.id}')">Detalhes</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Meta do dia
+  const md = document.getElementById('d-meta-hoje');
+  if (!metaHoje) {
+    md.innerHTML = '<div style="font-size:13px;color:var(--txts);background:var(--branco);border-radius:12px;padding:14px;border:1px solid var(--bge)">Nenhuma meta publicada hoje. Vá em "Meta do Dia" para planejar.</div>';
+  } else {
+    const proj = projetos.find(p => p.id === metaHoje.projetoId);
+    md.innerHTML = `
+    <div class="md-card">
+      <div class="md-header">
+        <div><div class="md-projeto">${proj ? proj.nome : '—'}</div><div class="md-equipe">👥 ${(metaHoje.equipe||[]).join(', ')}</div></div>
+        <span class="ptag exec">${metaHoje.tarefas ? metaHoje.tarefas.length : 0} tarefas</span>
+      </div>
+      ${(metaHoje.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
+      ${metaHoje.obs ? `<div class="md-obs">📝 ${metaHoje.obs}</div>` : ''}
+    </div>`;
+  }
+
+  // Registros de campo de hoje
+  const rd = document.getElementById('d-registros-hoje');
+  const regsHoje = registros.filter(r => r.data === hoje());
+  if (regsHoje.length === 0) {
+    rd.innerHTML = '<div style="font-size:13px;color:var(--txts);background:var(--branco);border-radius:12px;padding:14px;border:1px solid var(--bge)">Nenhum registro de campo hoje ainda.</div>';
+  } else {
+    rd.innerHTML = regsHoje.map(r => {
+      const proj = projetos.find(p => p.id === r.projetoId);
+      const feitas = (r.tarefas||[]).filter(t=>t.feita).length;
+      const total = (r.tarefas||[]).length;
+      return `
+      <div class="meta-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:14px;font-weight:600;color:var(--vd)">${proj?proj.nome:'—'}</div>
+          <span class="badge verde">${feitas}/${total} tarefas</span>
+        </div>
+        <div class="custo-grid">
+          <div class="custo-item"><div class="custo-lbl">Custo do dia</div><div class="custo-val">${fmtR(r.custoTotal)}</div></div>
+          <div class="custo-item"><div class="custo-lbl">Progresso</div><div class="custo-val">${r.progresso||0}%</div></div>
+        </div>
+        ${r.ocorrencia ? `<div style="font-size:12px;color:var(--erro);margin-top:8px;background:#FDEDEC;border-radius:8px;padding:8px">⚠ ${r.ocorrencia}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
+// ===== PROJETOS =====
+function renderProjetos() {
+  const lista = document.getElementById('p-lista');
+  if (projetos.length === 0) {
+    lista.innerHTML = '<div class="vazio"><div class="vi">🌿</div><div>Adicione seu primeiro projeto</div></div>';
+    return;
+  }
+  lista.innerHTML = projetos.map(p => {
+    const st = statusP(p);
+    const acum = custoAcumulado(p.id);
+    const prev = parseFloat(p.custoPrevisto) || 0;
+    const sobreCusto = prev > 0 && acum > prev;
+    return `
+    <div class="pcard">
+      <div class="pch">
+        <div class="pnome">${p.nome}</div>
+        <span class="ptag ${tipoClass(p.tipo)}">${tipoLabel(p.tipo)}</span>
+      </div>
+      <div class="plbl"><span>${p.endereco||'—'}</span><span>${p.progresso||0}%</span></div>
+      <div class="ptrilha"><div class="pbarra ${st}" style="width:${p.progresso||0}%"></div></div>
+      <div class="custo-grid" style="margin-top:10px">
+        <div class="custo-item"><div class="custo-lbl">Previsto</div><div class="custo-val">${prev>0?fmtR(prev):'—'}</div></div>
+        <div class="custo-item ${sobreCusto?'alerta':''}"><div class="custo-lbl">Realizado</div><div class="custo-val">${fmtR(acum)}</div></div>
+        ${p.valorContrato ? `<div class="custo-item destaque" style="grid-column:1/-1"><div class="custo-lbl">Valor do contrato</div><div class="custo-val">${fmtR(parseFloat(p.valorContrato))}</div></div>` : ''}
+      </div>
+      <div class="acoes">
+        <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
+        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){projetos=projetos.filter(x=>x.id!=='${p.id}');salvar();renderProjetos();toast('Arquivado');}">Arquivar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirModal(id) { document.getElementById(id).classList.add('aberto'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('aberto'); }
+
+function salvarProjeto() {
+  const nome = document.getElementById('pj-nome').value.trim();
+  if (!nome) { toast('Informe o nome'); return; }
+  const p = {
+    id: Date.now().toString(),
+    nome, tipo: document.getElementById('pj-tipo').value,
+    endereco: document.getElementById('pj-end').value.trim(),
+    inicio: document.getElementById('pj-ini').value,
+    fim: document.getElementById('pj-fim').value,
+    custoPrevisto: document.getElementById('pj-custo-prev').value,
+    valorContrato: document.getElementById('pj-contrato').value,
+    tarefas: document.getElementById('pj-tarefas').value.trim().split('\n').filter(t=>t.trim()),
+    obs: document.getElementById('pj-obs').value.trim(),
+    progresso: 0
+  };
+  projetos.push(p);
+  salvar();
+  fecharModal('m-projeto');
+  renderProjetos();
+  toast('Projeto cadastrado ✓');
+  ['pj-nome','pj-end','pj-ini','pj-fim','pj-custo-prev','pj-contrato','pj-tarefas','pj-obs'].forEach(id => document.getElementById(id).value='');
+}
+
+function verDetalhes(id) {
+  const p = projetos.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('det-tit').textContent = p.nome;
+  const acum = custoAcumulado(id);
+  const prev = parseFloat(p.custoPrevisto) || 0;
+  const regs = registros.filter(r => r.projetoId === id).slice(-5).reverse();
+
+  const histHtml = regs.length === 0
+    ? '<p style="font-size:13px;color:var(--txts)">Nenhum registro ainda</p>'
+    : regs.map(r=>`
+      <div style="border-left:3px solid var(--vc);padding:8px 12px;margin-bottom:8px;background:var(--bg);border-radius:0 8px 8px 0">
+        <div style="font-size:11px;color:var(--txts);margin-bottom:4px">${fmtData(r.data)} · ${fmtR(r.custoTotal)}</div>
+        <div style="font-size:12px;color:var(--txts)">👥 ${(r.equipe||[]).join(', ')}</div>
+        ${(r.tarefas||[]).filter(t=>t.feita).map(t=>`<div style="font-size:13px">✓ ${t.texto}</div>`).join('')}
+        ${r.ocorrencia?`<div style="font-size:12px;color:var(--erro);margin-top:4px">⚠ ${r.ocorrencia}</div>`:''}
+      </div>`).join('');
+
+  document.getElementById('det-corpo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div><div style="font-size:11px;color:var(--txts)">Início</div><div style="font-size:14px;font-weight:500">${fmtData(p.inicio)}</div></div>
+      <div><div style="font-size:11px;color:var(--txts)">Previsão</div><div style="font-size:14px;font-weight:500">${fmtData(p.fim)}</div></div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="plbl"><span>Conclusão</span><span>${p.progresso||0}%</span></div>
+      <div class="ptrilha"><div class="pbarra ${statusP(p)}" style="width:${p.progresso||0}%"></div></div>
+    </div>
+    <div class="custo-grid" style="margin-bottom:16px">
+      <div class="custo-item"><div class="custo-lbl">Custo previsto</div><div class="custo-val">${prev>0?fmtR(prev):'—'}</div></div>
+      <div class="custo-item ${prev>0&&acum>prev?'alerta':''}"><div class="custo-lbl">Custo realizado</div><div class="custo-val">${fmtR(acum)}</div></div>
+      ${p.valorContrato?`<div class="custo-item destaque"><div class="custo-lbl">Valor contrato</div><div class="custo-val">${fmtR(parseFloat(p.valorContrato))}</div></div>`:''}
+      ${prev>0?`<div class="custo-item"><div class="custo-lbl">Margem estimada</div><div class="custo-val" style="color:${parseFloat(p.valorContrato||0)-acum>0?'var(--ok)':'var(--erro)'}">
+        ${parseFloat(p.valorContrato||0)>0?fmtR(parseFloat(p.valorContrato)-acum):'—'}</div></div>`:''}
+    </div>
+    ${p.tarefas&&p.tarefas.length?`<div style="margin-bottom:16px"><div class="stit">Escopo</div>${p.tarefas.map(t=>`<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--bg)">· ${t}</div>`).join('')}</div>`:''}
+    ${p.obs?`<div style="margin-bottom:16px;background:var(--bg);padding:12px;border-radius:10px;font-size:13px;color:var(--txts)">${p.obs}</div>`:''}
+    <div class="stit">Histórico de campo</div>
+    ${histHtml}
+  `;
+  abrirModal('m-detalhe');
+}
+
+// ===== META DO DIA =====
+function renderMeta() {
+  // Preencher select de projetos
+  const sel = document.getElementById('meta-projeto');
+  sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
+  projetos.filter(p => p.progresso < 100).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.nome;
+    sel.appendChild(o);
+  });
+
+  // Histórico
+  const hist = document.getElementById('meta-historico');
+  const recentes = [...metas].reverse().slice(0, 7);
+  if (recentes.length === 0) {
+    hist.innerHTML = '<div style="font-size:13px;color:var(--txts)">Nenhuma meta registrada ainda.</div>';
+  } else {
+    hist.innerHTML = recentes.map(m => {
+      const proj = projetos.find(p => p.id === m.projetoId);
+      const isHoje = m.data === hoje();
+      return `
+      <div class="md-card" style="${isHoje?'border:1.5px solid var(--vm)':''}">
+        <div class="md-header">
+          <div>
+            <div class="md-projeto">${proj ? proj.nome : '—'} ${isHoje?'<span class="badge verde">Hoje</span>':''}</div>
+            <div class="md-equipe">${fmtData(m.data)} · 👥 ${(m.equipe||[]).join(', ')}</div>
+          </div>
+        </div>
+        ${(m.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
+        ${m.obs?`<div class="md-obs">📝 ${m.obs}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+}
+
+function salvarMeta() {
+  const projetoId = document.getElementById('meta-projeto').value;
+  if (!projetoId) { toast('Selecione um projeto'); return; }
+  const equipe = [];
+  document.querySelectorAll('#meta-equipe-grid .eq-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value) || 0;
+    if (qtd > 0) equipe.push(`${qtd}x ${inp.dataset.funcao}`);
+  });
+  if (equipe.length === 0) { toast('Informe pelo menos um membro da equipe'); return; }
+  const tarefasRaw = document.getElementById('meta-tarefas').value.trim();
+  if (!tarefasRaw) { toast('Adicione pelo menos uma tarefa'); return; }
+  const meta = {
+    id: Date.now().toString(),
+    data: hoje(),
+    projetoId,
+    equipe,
+    tarefas: tarefasRaw.split('\n').filter(t => t.trim()),
+    obs: document.getElementById('meta-obs').value.trim()
+  };
+  metas.push(meta);
+  salvar();
+  toast('Meta publicada ✓');
+  document.getElementById('meta-projeto').value = '';
+  document.getElementById('meta-tarefas').value = '';
+  document.getElementById('meta-obs').value = '';
+  document.querySelectorAll('#meta-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
+  renderMeta();
+}
+
+// ===== CAMPO =====
+function renderCampo() {
+  // Preencher data com hoje por padrão
+  document.getElementById('c-data').value = hoje();
+
+  const sel = document.getElementById('c-select-proj');
+  sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
+  projetos.filter(p => p.progresso < 100).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.nome;
+    sel.appendChild(o);
+  });
+}
+
+function selecionarProjetoCampo() {
+  const id = document.getElementById('c-select-proj').value;
+  if (!id) {
+    document.getElementById('c-form').style.display = 'none';
+    document.getElementById('c-proj-nome').textContent = 'Selecione abaixo';
+    return;
+  }
+  projCampo = projetos.find(p => p.id === id);
+  document.getElementById('c-proj-nome').textContent = projCampo.nome;
+  document.getElementById('c-prog-range').value = projCampo.progresso || 0;
+  document.getElementById('c-prog-val').textContent = (projCampo.progresso || 0) + '%';
+
+  // Preencher tarefas
+  const tDiv = document.getElementById('c-tarefas');
+  if (!projCampo.tarefas || projCampo.tarefas.length === 0) {
+    tDiv.innerHTML = '<div style="font-size:13px;color:var(--txts);padding:10px 0">Nenhuma tarefa cadastrada para este projeto</div>';
+  } else {
+    tDiv.innerHTML = projCampo.tarefas.map((t,i) => `
+      <div class="tarefa-item">
+        <input type="checkbox" class="tchk" id="ct-${i}">
+        <label class="ttxt" for="ct-${i}">${t}</label>
+      </div>`).join('');
+  }
+
+  // Pré-preencher equipe da meta do dia se houver (não aplicável com qtd)
+
+  document.getElementById('c-form').style.display = 'block';
+  calcularCustoCampo();
+}
+
+function calcularCustoCampo() {
+  let mo = 0, vt = 0, totalPessoas = 0;
+  document.querySelectorAll('#c-equipe-grid .eq-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value) || 0;
+    if (qtd > 0) {
+      mo += parseFloat(inp.dataset.diaria) * qtd;
+      vt += CUSTO.vt * qtd;
+      totalPessoas += qtd;
+    }
+  });
+
+  const marmitas = parseInt(document.getElementById('c-marmitas').value) || 0;
+  const vlrMarm = parseFloat(document.getElementById('c-vlr-marmita').value) || 0;
+  const ali = marmitas * vlrMarm;
+
+  const temVeic = document.getElementById('c-veiculo').value !== '';
+  const vfix = temVeic ? CUSTO.veic_fixo : 0;
+  const km = parseInt(document.getElementById('c-km').value) || 0;
+  const comb = km * CUSTO.km;
+
+  const temVeic2 = document.getElementById('c-veiculo2').value !== '';
+  const vfix2 = temVeic2 ? CUSTO.veic_fixo : 0;
+  const km2 = parseInt(document.getElementById('c-km2').value) || 0;
+  const comb2 = km2 * CUSTO.km;
+
+  const extras = parseFloat(document.getElementById('c-extras-val').value) || 0;
+  const total = mo + ali + vfix + comb + vfix2 + comb2 + CUSTO.equip + vt + extras;
+
+  document.getElementById('cp-mo').textContent = fmtR(mo);
+  document.getElementById('cp-ali').textContent = fmtR(ali);
+  document.getElementById('cp-vfix').textContent = fmtR(vfix + vfix2);
+  document.getElementById('cp-comb').textContent = fmtR(comb + comb2);
+  document.getElementById('cp-vt').textContent = fmtR(vt);
+  document.getElementById('cp-total').textContent = fmtR(total);
+}
+
+function registrarCampo() {
+  if (!projCampo) { toast('Selecione um projeto'); return; }
+  const equipe = [];
+  let mo = 0, vt = 0;
+  document.querySelectorAll('#c-equipe-grid .eq-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value) || 0;
+    if (qtd > 0) {
+      equipe.push(`${qtd}x ${inp.dataset.funcao}`);
+      mo += parseFloat(inp.dataset.diaria) * qtd;
+      vt += CUSTO.vt * qtd;
+    }
+  });
+  if (equipe.length === 0) { toast('Informe a equipe presente'); return; }
+
+  const marmitas = parseInt(document.getElementById('c-marmitas').value)||0;
+  const vlrMarm = parseFloat(document.getElementById('c-vlr-marmita').value)||0;
+  const ali = marmitas * vlrMarm;
+  const temVeic = document.getElementById('c-veiculo').value !== '';
+  const vfix = temVeic ? CUSTO.veic_fixo : 0;
+  const km = parseInt(document.getElementById('c-km').value)||0;
+  const comb = km * CUSTO.km;
+  const temVeic2 = document.getElementById('c-veiculo2').value !== '';
+  const vfix2 = temVeic2 ? CUSTO.veic_fixo : 0;
+  const km2 = parseInt(document.getElementById('c-km2').value)||0;
+  const comb2 = km2 * CUSTO.km;
+  const extras = parseFloat(document.getElementById('c-extras-val').value)||0;
+  const custoTotal = mo + ali + vfix + comb + vfix2 + comb2 + CUSTO.equip + vt + extras;
+
+  const tarefas = (projCampo.tarefas||[]).map((t,i) => ({
+    texto: t, feita: document.getElementById('ct-'+i)?.checked || false
+  }));
+
+  const dataApontamento = document.getElementById('c-data').value || hoje();
+
+  const reg = {
+    id: Date.now().toString(),
+    projetoId: projCampo.id,
+    data: dataApontamento,
+    equipe,
+    tarefas,
+    ocorrencia: document.getElementById('c-ocorrencia').value.trim(),
+    veiculo: document.getElementById('c-veiculo').value,
+    km,
+    veiculo2: document.getElementById('c-veiculo2').value,
+    km2,
+    marmitas,
+    gastoExtra: extras,
+    gastoExtraDesc: document.getElementById('c-extras-desc').value.trim(),
+    progresso: novoProgresso,
+    custoMO: mo, custoAli: ali, custoVeic: vfix + comb,
+    custoEquip: CUSTO.equip, custoVT: vt, custoTotal
+  };
+
+  registros.push(reg);
+  const idx = projetos.findIndex(p => p.id === projCampo.id);
+  if (idx !== -1) projetos[idx].progresso = novoProgresso;
+  salvar();
+
+  // 🗓 CALENDÁRIO: se chegou em 100%, agendar manutenção de entrega em 30 dias
+  if (novoProgresso >= 100) {
+    const dtManutencao = new Date();
+    dtManutencao.setDate(dtManutencao.getDate() + 30);
+    const dtStr = dtManutencao.toISOString().split('T')[0];
+    const [y,m,d] = dtStr.split('-');
+    const titulo = encodeURIComponent(`Manutenção de Entrega — ${projCampo.nome}`);
+    const dataGCal = `${y}${m}${d}`;
+    const url = `https://calendar.google.com/calendar/r/eventedit?text=${titulo}&dates=${dataGCal}/${dataGCal}&details=${encodeURIComponent('Manutenção de entrega 30 dias após conclusão da obra.')}`;
+    const ok = confirm(`🎉 Projeto concluído!\n\nDeseja agendar a Manutenção de Entrega para ${d}/${m}/${y}?\n\nIrá abrir o Google Calendar.`);
+    if (ok) window.open(url, '_blank');
+  }
+
+  toast('Registro enviado ✓');
+
+  document.getElementById('c-data').value = hoje();
+  document.getElementById('c-select-proj').value = '';
+  document.getElementById('c-form').style.display = 'none';
+  document.getElementById('c-proj-nome').textContent = 'Selecione abaixo';
+  document.getElementById('c-ocorrencia').value = '';
+  document.getElementById('c-extras-val').value = '0';
+  document.getElementById('c-extras-desc').value = '';
+  document.getElementById('c-marmitas').value = '0';
+  document.getElementById('c-km').value = '0';
+  document.getElementById('c-veiculo').value = '';
+  document.getElementById('c-km2').value = '0';
+  document.getElementById('c-veiculo2').value = '';
+  document.querySelectorAll('#c-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
+  projCampo = null;
+}
+
+// ===== SEMANA =====
+function renderSemana() {
+  const agora = new Date();
+  const dw = agora.getDay();
+  const seg = new Date(agora);
+  seg.setDate(agora.getDate() - (dw === 0 ? 6 : dw - 1));
+
+  const dias = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const hojeStr = hoje();
+  const grid = document.getElementById('semana-grid');
+
+  let html = '';
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(seg); d.setDate(seg.getDate()+i);
+    const ds = d.toISOString().split('T')[0];
+    const isHj = ds === hojeStr;
+
+    const projsDia = projetos.filter(p => p.inicio && p.fim && ds >= p.inicio && ds <= p.fim && p.progresso < 100);
+    const metaDia = metas.filter(m => m.data === ds).slice(-1)[0];
+    const regsDia = registros.filter(r => r.data === ds);
+
+    let items = '';
+    if (metaDia) {
+      const mp = projetos.find(p => p.id === metaDia.projetoId);
+      items += `<div class="diatarefa" style="color:var(--vm);font-weight:500">📋 ${mp?mp.nome:'—'}</div>`;
+      (metaDia.tarefas||[]).slice(0,2).forEach(t => { items += `<div class="diatarefa">${t}</div>`; });
+      if ((metaDia.tarefas||[]).length > 2) items += `<div class="diatarefa" style="color:var(--txts)">+${metaDia.tarefas.length-2} tarefas</div>`;
+    } else if (projsDia.length > 0) {
+      projsDia.forEach(p => { items += `<div class="diatarefa">${p.nome}</div>`; });
+    }
+    regsDia.forEach(r => {
+      const feitas = (r.tarefas||[]).filter(t=>t.feita).length;
+      items += `<div class="diatarefa" style="color:var(--ok)">✓ ${feitas} tarefas · ${fmtR(r.custoTotal)}</div>`;
+    });
+    if (!items) items = '<div class="diatarefa" style="color:var(--bge)">Livre</div>';
+
+    html += `<div class="diacard ${isHj?'hoje':''}">
+      <div class="diah"><span class="dianome">${dias[i]}${isHj?' · hoje':''}</span><span class="diadta">${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}</span></div>
+      ${items}
+    </div>`;
+  }
+  grid.innerHTML = html;
+
+  const fim = new Date(seg); fim.setDate(seg.getDate()+5);
+  document.getElementById('semana-tit').textContent =
+    `Semana ${seg.getDate()}/${seg.getMonth()+1} — ${fim.getDate()}/${fim.getMonth()+1}`;
+}
+
+// ===== INIT =====
+atualizarData();
+renderDash();
+</script>
+</body>
+</html>
