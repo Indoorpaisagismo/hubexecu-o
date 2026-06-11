@@ -646,6 +646,9 @@ async function fbSalvarMeta(m) {
 async function fbSalvarCronograma(c) {
   try { await setDoc(doc(db,'cronograma',String(c.id)),c); } catch(e){console.warn(e);}
 }
+async function fbSalvarDispensa(d) {
+  try { await setDoc(doc(db,'dispensas',String(d.id)),d); } catch(e){console.warn(e);}
+}
 async function fbDeletar(col,id) { try { await deleteDoc(doc(db,col,String(id))); } catch(e){console.warn(e);} }
 async function fbAtualizarProjeto(id,dados) { try { await updateDoc(doc(db,'projetos',String(id)),dados); } catch(e){console.warn(e);} }
 
@@ -654,6 +657,7 @@ function iniciarListeners() {
   onSnapshot(collection(db,'registros'), snap => { registros = snap.docs.map(d=>d.data()); renderDash(); renderRegistros(); });
   onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
   onSnapshot(collection(db,'cronograma'), snap => { cronograma = snap.docs.map(d=>d.data()); renderSemana(); });
+  onSnapshot(collection(db,'dispensas'), snap => { dispensas = snap.docs.map(d=>d.data()); renderDash(); });
 }
 
 // ===== CONSTANTES =====
@@ -668,6 +672,7 @@ let projetos = [];
 let registros = [];
 let metas = [];
 let cronograma = [];
+let dispensas = []; // dias dispensados do alerta de pendências
 let projCampo = null;
 function salvar() {}
 
@@ -718,6 +723,7 @@ function atualizarData() {
 // ===== DASHBOARD =====
 // ===== PENDÊNCIAS DE PREENCHIMENTO =====
 let pendenciasExpandido = false;
+let dispensaPendente = null;
 
 function calcularPendencias() {
   // Encontrar a data de início mais antiga entre projetos ativos
@@ -735,6 +741,9 @@ function calcularPendencias() {
   // Datas que já têm registro / meta
   const datasComRegistro = new Set(registros.map(r => r.data));
   const datasComMeta = new Set(metas.map(m => m.data));
+  // Dias dispensados (tipo 'registro' ou 'meta')
+  const registrosDispensados = new Set(dispensas.filter(d => d.tipo === 'registro').map(d => d.data));
+  const metasDispensadas = new Set(dispensas.filter(d => d.tipo === 'meta').map(d => d.data));
 
   // Percorrer de dataInicio até ontem (não cobra hoje ainda)
   let d = new Date(dataInicio + 'T12:00:00');
@@ -745,8 +754,8 @@ function calcularPendencias() {
     const ds = d.toISOString().split('T')[0];
     // Só seg-sex (1 a 5)
     if (dow >= 1 && dow <= 5) {
-      if (!datasComRegistro.has(ds)) diasSemRegistro.push(ds);
-      if (!datasComMeta.has(ds)) diasSemMeta.push(ds);
+      if (!datasComRegistro.has(ds) && !registrosDispensados.has(ds)) diasSemRegistro.push(ds);
+      if (!datasComMeta.has(ds) && !metasDispensadas.has(ds)) diasSemMeta.push(ds);
     }
     d.setDate(d.getDate() + 1);
   }
@@ -766,11 +775,14 @@ function renderPendencias() {
     return;
   }
 
-  const listaDias = (arr) => arr.map(ds => {
+  const listaDias = (arr, tipo) => arr.map(ds => {
     const [y,m,d] = ds.split('-');
     const dia = new Date(ds + 'T12:00:00');
     const nomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-    return `<div style="font-size:12px;color:var(--txt);padding:4px 0;border-bottom:1px solid var(--bg)">${nomes[dia.getDay()]} ${d}/${m}/${y}</div>`;
+    return `<div style="font-size:12px;color:var(--txt);padding:4px 0;border-bottom:1px solid var(--bg);display:flex;justify-content:space-between;align-items:center">
+      <span>${nomes[dia.getDay()]} ${d}/${m}/${y}</span>
+      <span onclick="dispensarDia('${ds}','${tipo}')" style="color:var(--txts);cursor:pointer;font-size:14px;padding:0 4px" title="Dispensar">✕</span>
+    </div>`;
   }).join('');
 
   el.innerHTML = `
@@ -786,16 +798,34 @@ function renderPendencias() {
         <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div>
             <div style="font-size:11px;font-weight:600;color:var(--txts);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px">Sem registro (${diasSemRegistro.length})</div>
-            ${diasSemRegistro.length ? listaDias(diasSemRegistro) : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
+            ${diasSemRegistro.length ? listaDias(diasSemRegistro, 'registro') : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
           </div>
           <div>
             <div style="font-size:11px;font-weight:600;color:var(--txts);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px">Sem meta (${diasSemMeta.length})</div>
-            ${diasSemMeta.length ? listaDias(diasSemMeta) : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
+            ${diasSemMeta.length ? listaDias(diasSemMeta, 'meta') : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
           </div>
         </div>
-        <div style="font-size:11px;color:var(--txts);margin-top:12px;line-height:1.4">💡 Para preencher retroativamente, vá em Campo ou Meta do Dia e troque a data antes de enviar.</div>
+        <div style="font-size:11px;color:var(--txts);margin-top:12px;line-height:1.4">💡 Preencha retroativamente em Campo ou Meta do Dia trocando a data, ou toque no ✕ para dispensar um dia que não precisa registro.</div>
       ` : ''}
     </div>`;
+}
+
+function dispensarDia(data, tipo) {
+  idParaApagar = `${tipo}_${data}`;
+  dispensaPendente = { id: `${tipo}_${data}`, data, tipo };
+  acaoPendente = 'executarDispensa';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-erro').style.display = 'none';
+  abrirModal('m-pin');
+}
+
+function executarDispensa() {
+  if (!dispensaPendente) return;
+  dispensas.push(dispensaPendente);
+  fbSalvarDispensa(dispensaPendente);
+  dispensaPendente = null;
+  renderPendencias();
+  toast('Dia dispensado');
 }
 
 function togglePendencias() {
@@ -1741,6 +1771,8 @@ window.fecharModal = fecharModal;
 window.salvarProjeto = salvarProjeto;
 window.verDetalhes = verDetalhes;
 window.togglePendencias = togglePendencias;
+window.dispensarDia = dispensarDia;
+window.executarDispensa = executarDispensa;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
 window.cronSelecionarTipo = cronSelecionarTipo;
