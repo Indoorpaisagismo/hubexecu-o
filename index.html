@@ -229,6 +229,9 @@
     <div class="eqdet" id="d-eq-det">—</div>
   </div>
 
+  <!-- ALERTA DE PENDÊNCIAS -->
+  <div id="d-pendencias"></div>
+
   <div class="stit">Projetos em andamento</div>
   <div id="d-projetos"></div>
 
@@ -713,7 +716,95 @@ function atualizarData() {
 }
 
 // ===== DASHBOARD =====
+// ===== PENDÊNCIAS DE PREENCHIMENTO =====
+let pendenciasExpandido = false;
+
+function calcularPendencias() {
+  // Encontrar a data de início mais antiga entre projetos ativos
+  const projsAtivos = projetos.filter(p => p.progresso < 100 && p.inicio);
+  if (projsAtivos.length === 0) return { diasSemRegistro: [], diasSemMeta: [] };
+
+  const inicios = projsAtivos.map(p => p.inicio).filter(Boolean).sort();
+  const dataInicio = inicios[0];
+  if (!dataInicio) return { diasSemRegistro: [], diasSemMeta: [] };
+
+  const hojeStr = hoje();
+  const diasSemRegistro = [];
+  const diasSemMeta = [];
+
+  // Datas que já têm registro / meta
+  const datasComRegistro = new Set(registros.map(r => r.data));
+  const datasComMeta = new Set(metas.map(m => m.data));
+
+  // Percorrer de dataInicio até ontem (não cobra hoje ainda)
+  let d = new Date(dataInicio + 'T12:00:00');
+  const limite = new Date(hojeStr + 'T12:00:00');
+
+  while (d < limite) {
+    const dow = d.getDay();
+    const ds = d.toISOString().split('T')[0];
+    // Só seg-sex (1 a 5)
+    if (dow >= 1 && dow <= 5) {
+      if (!datasComRegistro.has(ds)) diasSemRegistro.push(ds);
+      if (!datasComMeta.has(ds)) diasSemMeta.push(ds);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+
+  return { diasSemRegistro, diasSemMeta };
+}
+
+function renderPendencias() {
+  const el = document.getElementById('d-pendencias');
+  if (!el) return;
+
+  const { diasSemRegistro, diasSemMeta } = calcularPendencias();
+  const total = diasSemRegistro.length + diasSemMeta.length;
+
+  if (total === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const listaDias = (arr) => arr.map(ds => {
+    const [y,m,d] = ds.split('-');
+    const dia = new Date(ds + 'T12:00:00');
+    const nomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    return `<div style="font-size:12px;color:var(--txt);padding:4px 0;border-bottom:1px solid var(--bg)">${nomes[dia.getDay()]} ${d}/${m}/${y}</div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="background:#FFF3E0;border:1px solid #F5C6A0;border-radius:14px;padding:16px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="togglePendencias()">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--alerta)">⚠ Preenchimentos pendentes</div>
+          <div style="font-size:12px;color:var(--txts);margin-top:3px">${diasSemRegistro.length} registros e ${diasSemMeta.length} metas não enviados</div>
+        </div>
+        <span style="font-size:14px;color:var(--alerta)">${pendenciasExpandido ? '▲' : '▼'}</span>
+      </div>
+      ${pendenciasExpandido ? `
+        <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--txts);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px">Sem registro (${diasSemRegistro.length})</div>
+            ${diasSemRegistro.length ? listaDias(diasSemRegistro) : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--txts);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px">Sem meta (${diasSemMeta.length})</div>
+            ${diasSemMeta.length ? listaDias(diasSemMeta) : '<div style="font-size:12px;color:var(--ok)">✓ Tudo em dia</div>'}
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--txts);margin-top:12px;line-height:1.4">💡 Para preencher retroativamente, vá em Campo ou Meta do Dia e troque a data antes de enviar.</div>
+      ` : ''}
+    </div>`;
+}
+
+function togglePendencias() {
+  pendenciasExpandido = !pendenciasExpandido;
+  renderPendencias();
+}
+
 function renderDash() {
+  renderPendencias();
   const ativos = projetos.filter(p => p.progresso < 100);
   const atrasados = projetos.filter(p => p.progresso < 100 && diasR(p.fim) !== null && diasR(p.fim) < 0);
   const concluidos = projetos.filter(p => p.progresso >= 100);
@@ -1649,6 +1740,7 @@ window.abrirModal = abrirModal;
 window.fecharModal = fecharModal;
 window.salvarProjeto = salvarProjeto;
 window.verDetalhes = verDetalhes;
+window.togglePendencias = togglePendencias;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
 window.cronSelecionarTipo = cronSelecionarTipo;
