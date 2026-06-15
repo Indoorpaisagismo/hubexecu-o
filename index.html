@@ -212,6 +212,7 @@
     <button class="nb" onclick="mudarAba('meta',this)">Meta do Dia</button>
     <button class="nb" onclick="mudarAba('campo',this)">Campo</button>
     <button class="nb" onclick="mudarAba('semana',this)">Cronograma</button>
+    <button class="nb" onclick="mudarAba('entrega',this)">Entrega</button>
   </div>
 </div>
 
@@ -231,6 +232,8 @@
 
   <!-- ALERTA DE PENDÊNCIAS -->
   <div id="d-pendencias"></div>
+  <!-- ALERTA DE CHECKLIST DE ENTREGA -->
+  <div id="d-checklist-pendencias"></div>
 
   <div class="stit">Projetos em andamento</div>
   <div id="d-projetos"></div>
@@ -437,6 +440,18 @@
   </div>
 </div>
 
+<!-- ABA: ENTREGA -->
+<div class="aba" id="aba-entrega">
+  <div class="stit">Checklist de entrega</div>
+  <div class="campo-grupo">
+    <label class="campo-lbl">Projeto</label>
+    <select class="campo-sel" id="entrega-projeto" onchange="selecionarProjetoEntrega()">
+      <option value="">— Selecionar projeto —</option>
+    </select>
+  </div>
+  <div id="entrega-conteudo"></div>
+</div>
+
 <!-- ===== SEMANA ===== -->
 
 <div class="aba" id="aba-semana">
@@ -556,7 +571,7 @@
 <!-- MODAL CRONOGRAMA -->
 <div class="modal-ov" id="m-cronograma">
   <div class="modal">
-    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-cronograma')">×</button>Adicionar ao cronograma</div>
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-cronograma')">×</button><span id="cron-modal-tit">Adicionar ao cronograma</span></div>
     <input type="hidden" id="cron-id">
     <div class="campo-grupo">
       <label class="campo-lbl">Data</label>
@@ -646,6 +661,9 @@ async function fbSalvarMeta(m) {
 async function fbSalvarCronograma(c) {
   try { await setDoc(doc(db,'cronograma',String(c.id)),c); } catch(e){console.warn(e);}
 }
+async function fbSalvarChecklist(c) {
+  try { await setDoc(doc(db,'checklists',String(c.projetoId)),c); } catch(e){console.warn(e);}
+}
 async function fbSalvarDispensa(d) {
   try { await setDoc(doc(db,'dispensas',String(d.id)),d); } catch(e){console.warn(e);}
 }
@@ -658,6 +676,7 @@ function iniciarListeners() {
   onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
   onSnapshot(collection(db,'cronograma'), snap => { cronograma = snap.docs.map(d=>d.data()); renderSemana(); });
   onSnapshot(collection(db,'dispensas'), snap => { dispensas = snap.docs.map(d=>d.data()); renderDash(); });
+  onSnapshot(collection(db,'checklists'), snap => { checklists = snap.docs.map(d=>d.data()); renderDash(); renderEntrega(); });
 }
 
 // ===== CONSTANTES =====
@@ -673,6 +692,7 @@ let registros = [];
 let metas = [];
 let cronograma = [];
 let dispensas = []; // dias dispensados do alerta de pendências
+let checklists = []; // checklists de entrega por projeto
 let projCampo = null;
 function salvar() {}
 
@@ -710,6 +730,7 @@ function mudarAba(aba, btn) {
   if (aba==='projetos') renderProjetos();
   if (aba==='campo') { renderCampo(); renderRegistros(); }
   if (aba==='semana') renderSemana();
+  if (aba==='entrega') renderEntrega();
   if (aba==='registros') renderRegistros();
   if (aba==='meta') renderMeta();
 }
@@ -835,6 +856,7 @@ function togglePendencias() {
 
 function renderDash() {
   renderPendencias();
+  renderChecklistPendencias();
   const ativos = projetos.filter(p => p.progresso < 100);
   const atrasados = projetos.filter(p => p.progresso < 100 && diasR(p.fim) !== null && diasR(p.fim) < 0);
   const concluidos = projetos.filter(p => p.progresso >= 100);
@@ -843,12 +865,21 @@ function renderDash() {
   document.getElementById('d-atrasados').textContent = atrasados.length;
   document.getElementById('d-concluidos').textContent = concluidos.length;
 
-  // Equipe hoje — pega meta do dia se houver
-  const metaHoje = metas.filter(m => m.data === hoje()).slice(-1)[0];
-  if (metaHoje) {
-    const proj = projetos.find(p => p.id === metaHoje.projetoId);
-    document.getElementById('d-eq-local').textContent = proj ? proj.nome : 'Projeto não encontrado';
-    document.getElementById('d-eq-det').textContent = (metaHoje.equipe || []).join(', ') || '—';
+  // Equipe hoje — todas as metas do dia
+  const metasHoje = metas.filter(m => m.data === hoje());
+  if (metasHoje.length > 0) {
+    if (metasHoje.length === 1) {
+      const proj = projetos.find(p => p.id === metasHoje[0].projetoId);
+      document.getElementById('d-eq-local').textContent = proj ? proj.nome : 'Projeto não encontrado';
+      document.getElementById('d-eq-det').textContent = (metasHoje[0].equipe || []).join(', ') || '—';
+    } else {
+      document.getElementById('d-eq-local').textContent = `${metasHoje.length} frentes de trabalho hoje`;
+      const resumo = metasHoje.map(m => {
+        const proj = projetos.find(p => p.id === m.projetoId);
+        return proj ? proj.nome : '—';
+      }).join(' · ');
+      document.getElementById('d-eq-det').textContent = resumo;
+    }
   } else if (ativos.length > 0) {
     document.getElementById('d-eq-local').textContent = ativos[0].nome;
     document.getElementById('d-eq-det').textContent = ativos[0].endereco || '—';
@@ -893,21 +924,23 @@ function renderDash() {
     }).join('');
   }
 
-  // Meta do dia
+  // Meta do dia — todas as metas de hoje
   const md = document.getElementById('d-meta-hoje');
-  if (!metaHoje) {
+  if (metasHoje.length === 0) {
     md.innerHTML = '<div style="font-size:13px;color:var(--txts);background:var(--branco);border-radius:12px;padding:14px;border:1px solid var(--bge)">Nenhuma meta publicada hoje. Vá em "Meta do Dia" para planejar.</div>';
   } else {
-    const proj = projetos.find(p => p.id === metaHoje.projetoId);
-    md.innerHTML = `
-    <div class="md-card">
-      <div class="md-header">
-        <div><div class="md-projeto">${proj ? proj.nome : '—'}</div><div class="md-equipe">👥 ${(metaHoje.equipe||[]).join(', ')}</div></div>
-        <span class="ptag exec">${metaHoje.tarefas ? metaHoje.tarefas.length : 0} tarefas</span>
-      </div>
-      ${(metaHoje.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
-      ${metaHoje.obs ? `<div class="md-obs">📝 ${metaHoje.obs}</div>` : ''}
-    </div>`;
+    md.innerHTML = metasHoje.map(meta => {
+      const proj = projetos.find(p => p.id === meta.projetoId);
+      return `
+      <div class="md-card">
+        <div class="md-header">
+          <div><div class="md-projeto">${proj ? proj.nome : '—'}</div><div class="md-equipe">👥 ${(meta.equipe||[]).join(', ')}</div></div>
+          <span class="ptag exec">${meta.tarefas ? meta.tarefas.length : 0} tarefas</span>
+        </div>
+        ${(meta.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
+        ${meta.obs ? `<div class="md-obs">📝 ${meta.obs}</div>` : ''}
+      </div>`;
+    }).join('');
   }
 
   // Registros de campo de hoje
@@ -1326,14 +1359,18 @@ function renderSemana() {
   const grid = document.getElementById('semana-grid');
   if (!grid) return;
   const hojeStr = hoje();
+
+  // Começar 7 dias corridos atrás
   const inicio = new Date();
+  inicio.setDate(inicio.getDate() - 7);
 
   let html = '';
-  let diasMostrados = 0;
+  let diasUteisFuturos = 0;
   let offset = 0;
+  let separadorPassadoMostrado = false;
 
-  // Mostrar 15 dias úteis (seg-sáb) a partir de hoje
-  while (diasMostrados < 15) {
+  // Percorre dias: 7 passados + 15 dias úteis a partir de hoje
+  while (diasUteisFuturos < 15) {
     const d = new Date(inicio);
     d.setDate(inicio.getDate() + offset);
     offset++;
@@ -1342,11 +1379,18 @@ function renderSemana() {
 
     const ds = d.toISOString().split('T')[0];
     const isHj = ds === hojeStr;
+    const isPassado = ds < hojeStr;
 
-    // Itens do cronograma manual neste dia
+    // Conta dias úteis só a partir de hoje (para limitar os 15 futuros)
+    if (!isPassado) diasUteisFuturos++;
+
+    // Separador visual entre passado e presente
+    if (!isPassado && !separadorPassadoMostrado && !isHj) {
+      // (caso hoje seja domingo e o primeiro dia útil seja segunda)
+    }
+
+    // Itens do cronograma neste dia
     const itensCron = cronograma.filter(c => c.data === ds);
-    // Metas/registros automáticos
-    const metaDia = metas.filter(m => m.data === ds).slice(-1)[0];
     const regsDia = registros.filter(r => r.data === ds);
 
     let items = '';
@@ -1354,7 +1398,11 @@ function renderSemana() {
       const cor = c.tipo === 'manual' ? 'var(--terra)' : 'var(--vm)';
       const proj = c.tipo === 'projeto' ? (projetos.find(p => String(p.id) === String(c.projetoId)) || {}).nome : '';
       const texto = c.tipo === 'manual' ? c.descricao : `${proj || ''}${c.tarefa ? ' — ' + c.tarefa : ''}`;
-      items += `<div class="cron-item" style="border-left:3px solid ${cor}" onclick="apagarCronograma('${c.id}')">${texto}<span style="float:right;color:var(--txts);font-size:11px"> ✕</span></div>`;
+      items += `<div class="cron-item" style="border-left:3px solid ${cor};display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <span style="flex:1;cursor:pointer" onclick="abrirEditarCronograma('${c.id}')">${texto}</span>
+        <span style="cursor:pointer;color:var(--txts);font-size:13px" onclick="abrirEditarCronograma('${c.id}')">✏️</span>
+        <span style="cursor:pointer;color:var(--erro);font-size:13px" onclick="apagarCronograma('${c.id}')">✕</span>
+      </div>`;
     });
     regsDia.forEach(r => {
       const feitas = (r.tarefas||[]).filter(t=>t.feita).length;
@@ -1362,15 +1410,18 @@ function renderSemana() {
     });
     if (!items) items = '<div style="font-size:12px;color:var(--bge);padding:4px 0">—</div>';
 
+    // Estilo do card: passado fica mais apagado
+    const estiloCard = isPassado ? 'margin-bottom:10px;opacity:0.65' : 'margin-bottom:10px';
+    const tagPassado = isPassado ? '<span style="font-size:9px;color:var(--txts);background:var(--bge);padding:1px 6px;border-radius:10px;margin-left:6px">PASSOU</span>' : '';
+
     html += `
-    <div class="diacard ${isHj?'hoje':''}" style="margin-bottom:10px">
+    <div class="diacard ${isHj?'hoje':''}" style="${estiloCard}">
       <div class="diah">
-        <span class="dianome">${dias[dow]} ${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}${isHj?' · hoje':''}</span>
+        <span class="dianome">${dias[dow]} ${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}${isHj?' · hoje':''}${tagPassado}</span>
         <button class="btn-gestor" onclick="abrirAddCronograma('${ds}')" style="font-size:18px;color:var(--vm)">＋</button>
       </div>
       ${items}
     </div>`;
-    diasMostrados++;
   }
   grid.innerHTML = html;
 
@@ -1385,6 +1436,7 @@ let cronTipoAtual = 'projeto';
 
 function abrirAddCronograma(dataPadrao) {
   document.getElementById('cron-id').value = '';
+  document.getElementById('cron-modal-tit').textContent = 'Adicionar ao cronograma';
   document.getElementById('cron-data').value = dataPadrao || hoje();
   document.getElementById('cron-tarefa').value = '';
   document.getElementById('cron-manual').value = '';
@@ -1397,6 +1449,35 @@ function abrirAddCronograma(dataPadrao) {
     o.value = p.id; o.textContent = p.nome;
     sel.appendChild(o);
   });
+  abrirModal('m-cronograma');
+}
+
+function abrirEditarCronograma(id) {
+  const item = cronograma.find(c => c.id === id);
+  if (!item) return;
+  document.getElementById('cron-id').value = id;
+  document.getElementById('cron-modal-tit').textContent = 'Editar item do cronograma';
+  document.getElementById('cron-data').value = item.data;
+
+  // Popular select de projetos
+  const sel = document.getElementById('cron-projeto');
+  sel.innerHTML = '<option value="">— Selecionar —</option>';
+  projetos.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.nome;
+    if (String(p.id) === String(item.projetoId)) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  if (item.tipo === 'projeto') {
+    cronSelecionarTipo('projeto');
+    document.getElementById('cron-tarefa').value = item.tarefa || '';
+    document.getElementById('cron-manual').value = '';
+  } else {
+    cronSelecionarTipo('manual');
+    document.getElementById('cron-manual').value = item.descricao || '';
+    document.getElementById('cron-tarefa').value = '';
+  }
   abrirModal('m-cronograma');
 }
 
@@ -1420,25 +1501,33 @@ function cronSelecionarTipo(tipo) {
 function salvarCronograma() {
   const data = document.getElementById('cron-data').value;
   if (!data) { toast('Selecione a data'); return; }
+  const idExistente = document.getElementById('cron-id').value;
   let item;
   if (cronTipoAtual === 'projeto') {
     const projetoId = document.getElementById('cron-projeto').value;
     if (!projetoId) { toast('Selecione um projeto'); return; }
     item = {
-      id: Date.now().toString(),
+      id: idExistente || Date.now().toString(),
       data, tipo: 'projeto', projetoId,
       tarefa: document.getElementById('cron-tarefa').value.trim()
     };
   } else {
     const desc = document.getElementById('cron-manual').value.trim();
     if (!desc) { toast('Informe a descrição'); return; }
-    item = { id: Date.now().toString(), data, tipo: 'manual', descricao: desc };
+    item = { id: idExistente || Date.now().toString(), data, tipo: 'manual', descricao: desc };
   }
-  cronograma.push(item);
+  if (idExistente) {
+    // Editar item existente
+    const idx = cronograma.findIndex(c => c.id === idExistente);
+    if (idx !== -1) cronograma[idx] = item;
+    toast('Item atualizado ✓');
+  } else {
+    cronograma.push(item);
+    toast('Adicionado ao cronograma ✓');
+  }
   fbSalvarCronograma(item);
   fecharModal('m-cronograma');
   renderSemana();
-  toast('Adicionado ao cronograma ✓');
 }
 
 function apagarCronograma(id) {
@@ -1704,6 +1793,214 @@ function renderRegistros() {
   }).join('');
 }
 
+function renderChecklistPendencias() {
+  const el = document.getElementById('d-checklist-pendencias');
+  if (!el) return;
+
+  // Total de itens do modelo
+  let totalModelo = 0;
+  CHECKLIST_MODELO.forEach(s => totalModelo += s.itens.length);
+
+  // Projetos que têm checklist iniciado mas não 100% completo
+  const pendentes = [];
+  checklists.forEach(cl => {
+    const marcados = Object.values(cl.marcados || {}).filter(v => v).length;
+    if (marcados > 0 && marcados < totalModelo) {
+      pendentes.push({ nome: cl.projetoNome || '—', marcados, total: totalModelo, faltam: totalModelo - marcados });
+    }
+  });
+
+  if (pendentes.length === 0) { el.innerHTML = ''; return; }
+
+  el.innerHTML = pendentes.map(p => `
+    <div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:14px;padding:14px 16px;margin-bottom:12px;cursor:pointer" onclick="irParaEntrega()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#1565C0">📋 Entrega pendente — ${p.nome}</div>
+          <div style="font-size:12px;color:var(--txts);margin-top:3px">Faltam ${p.faltam} itens do checklist (${p.marcados}/${p.total})</div>
+        </div>
+        <span style="font-size:18px;color:#1565C0">→</span>
+      </div>
+    </div>`).join('');
+}
+
+function irParaEntrega() {
+  const btns = document.querySelectorAll('.nb');
+  btns.forEach(b => { if (b.textContent.trim() === 'Entrega') b.click(); });
+}
+
+// ===== CHECKLIST DE ENTREGA =====
+const CHECKLIST_MODELO = [
+  { secao: 'Limpeza e Organização', itens: [
+    'Retirada de entulhos e resíduos da obra',
+    'Limpeza de pisos, calçadas e áreas de circulação',
+    'Ferramentas e equipamentos conferidos',
+    'Caçamba retirada da obra'
+  ]},
+  { secao: 'Paisagismo', itens: [
+    'Todas as espécies instaladas conforme projeto',
+    'Quantidades conferidas',
+    'Folhas danificadas retiradas',
+    'Tutoramento revisado quando necessário',
+    'Nenhuma raiz exposta',
+    'Plantas, árvores e palmeiras alinhadas',
+    'Acabamentos (Cascas e Seixos) aplicados',
+    'Limitadores de canteiro instalados corretamente',
+    'Emendas dos gramados fechadas adequadamente',
+    'Nivelamento do gramado conferido',
+    'Ausência de falhas significativas'
+  ]},
+  { secao: 'Sistema de Irrigação', itens: [
+    'Tubulações enterradas e protegidas',
+    'Sem vazamentos aparentes',
+    'Conexões revisadas',
+    'Registros identificados',
+    'Raios e angulações dos aspersores regulados',
+    'Gotejadores funcionando',
+    'Microaspersores funcionando',
+    'Cobertura uniforme da irrigação',
+    'Controlador instalado',
+    'Programação configurada',
+    'Horários ajustados',
+    'Teste de funcionamento realizado',
+    'Cliente orientado sobre operação',
+    'Pressão adequada em todos os setores'
+  ]},
+  { secao: 'Orientação ao Cliente', itens: [
+    'Frequência de irrigação explicada',
+    'Cuidados pós-plantio explicados',
+    'Cronograma de adubação informado',
+    'Prazo de pegamento das plantas informado',
+    'Responsável treinado na operação do Sistema'
+  ]},
+  { secao: 'Registro Fotográfico', itens: [
+    'Fotos gerais da obra',
+    'Fotos dos canteiros',
+    'Fotos do gramado',
+    'Fotos da irrigação em funcionamento',
+    'Fotos dos acabamentos'
+  ]},
+  { secao: 'Aprovação Final', itens: [
+    'Cliente vistoriou a obra',
+    'Pendências registradas (caso existam)',
+    'Pendências solucionadas',
+    'Termo de entrega assinado',
+    'Manual de Entrega do jardim entregue'
+  ]}
+];
+
+let projEntrega = null;
+
+function renderEntrega() {
+  const sel = document.getElementById('entrega-projeto');
+  if (!sel) return;
+  const valorAtual = sel.value;
+  sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
+  projetos.forEach(p => {
+    const o = document.createElement('option');
+    o.value = String(p.id); o.textContent = p.nome;
+    sel.appendChild(o);
+  });
+  if (valorAtual) { sel.value = valorAtual; selecionarProjetoEntrega(); }
+}
+
+function selecionarProjetoEntrega() {
+  const id = document.getElementById('entrega-projeto').value;
+  const cont = document.getElementById('entrega-conteudo');
+  if (!id) { cont.innerHTML = ''; projEntrega = null; return; }
+  projEntrega = projetos.find(p => String(p.id) === String(id));
+
+  // Buscar checklist salvo deste projeto
+  const salvo = checklists.find(c => String(c.projetoId) === String(id));
+  const marcados = salvo ? salvo.marcados : {};
+  const observacoes = salvo ? (salvo.observacoes || {}) : {};
+
+  let html = '';
+  let totalItens = 0, totalMarcados = 0;
+
+  CHECKLIST_MODELO.forEach((sec, si) => {
+    const itensHtml = sec.itens.map((item, ii) => {
+      const key = `${si}_${ii}`;
+      totalItens++;
+      const checked = marcados[key];
+      if (checked) totalMarcados++;
+      return `
+        <div class="tarefa-item" style="padding:10px 14px">
+          <input type="checkbox" class="tchk" id="chk-${key}" ${checked?'checked':''} onchange="marcarChecklist('${key}',this.checked)">
+          <label class="ttxt" for="chk-${key}" style="font-size:13px">${item}</label>
+        </div>`;
+    }).join('');
+
+    html += `
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--vd);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          <span style="background:var(--vm);color:var(--branco);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px">${si+1}</span>
+          ${sec.secao}
+        </div>
+        ${itensHtml}
+        <div class="campo-grupo" style="margin-top:8px">
+          <textarea class="campo-ta" id="obs-${si}" placeholder="Observações de ${sec.secao.toLowerCase()}..." style="min-height:50px;font-size:13px" oninput="marcarObsChecklist(${si},this.value)">${observacoes[si]||''}</textarea>
+        </div>
+      </div>`;
+  });
+
+  const pct = totalItens > 0 ? Math.round(totalMarcados/totalItens*100) : 0;
+
+  cont.innerHTML = `
+    <div style="background:var(--vd);border-radius:14px;padding:16px;margin-bottom:20px;color:var(--branco)">
+      <div style="font-size:11px;color:var(--vc);letter-spacing:1px;margin-bottom:6px">PROGRESSO DA ENTREGA</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:500">${totalMarcados}/${totalItens}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--vc)">${pct}%</div>
+      </div>
+      <div class="ptrilha" style="margin-top:10px"><div class="pbarra ${pct>=100?'completo':''}" style="width:${pct}%"></div></div>
+    </div>
+    ${html}
+  `;
+}
+
+function getChecklistAtual() {
+  if (!projEntrega) return null;
+  const salvo = checklists.find(c => String(c.projetoId) === String(projEntrega.id));
+  return salvo || { projetoId: projEntrega.id, projetoNome: projEntrega.nome, marcados: {}, observacoes: {} };
+}
+
+function marcarChecklist(key, checked) {
+  const cl = getChecklistAtual();
+  if (!cl) return;
+  cl.marcados = { ...cl.marcados, [key]: checked };
+  cl.projetoNome = projEntrega.nome;
+  const idx = checklists.findIndex(c => String(c.projetoId) === String(projEntrega.id));
+  if (idx !== -1) checklists[idx] = cl; else checklists.push(cl);
+  fbSalvarChecklist(cl);
+  // Atualizar barra de progresso sem re-renderizar tudo
+  atualizarBarraEntrega();
+}
+
+function marcarObsChecklist(si, valor) {
+  const cl = getChecklistAtual();
+  if (!cl) return;
+  cl.observacoes = { ...cl.observacoes, [si]: valor };
+  cl.projetoNome = projEntrega.nome;
+  const idx = checklists.findIndex(c => String(c.projetoId) === String(projEntrega.id));
+  if (idx !== -1) checklists[idx] = cl; else checklists.push(cl);
+  fbSalvarChecklist(cl);
+}
+
+function atualizarBarraEntrega() {
+  let total = 0, marc = 0;
+  CHECKLIST_MODELO.forEach((sec, si) => sec.itens.forEach((item, ii) => {
+    total++;
+    if (document.getElementById(`chk-${si}_${ii}`)?.checked) marc++;
+  }));
+  const pct = total > 0 ? Math.round(marc/total*100) : 0;
+  const cont = document.getElementById('entrega-conteudo');
+  if (!cont) return;
+  const num = cont.querySelector('[style*="DM Mono"]');
+  // Re-render simples da barra
+  renderEntrega();
+}
+
 // ===== GOOGLE CALENDAR API =====
 const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -1775,6 +2072,12 @@ window.dispensarDia = dispensarDia;
 window.executarDispensa = executarDispensa;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
+window.abrirEditarCronograma = abrirEditarCronograma;
+window.renderEntrega = renderEntrega;
+window.selecionarProjetoEntrega = selecionarProjetoEntrega;
+window.marcarChecklist = marcarChecklist;
+window.marcarObsChecklist = marcarObsChecklist;
+window.irParaEntrega = irParaEntrega;
 window.cronSelecionarTipo = cronSelecionarTipo;
 window.salvarCronograma = salvarCronograma;
 window.apagarCronograma = apagarCronograma;
