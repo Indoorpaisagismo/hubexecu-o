@@ -549,6 +549,40 @@
     <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-reg')">×</button>Editar registro</div>
     <input type="hidden" id="edit-reg-id">
     <div class="campo-grupo"><label class="campo-lbl">Data</label><input class="campo-inp" type="date" id="edit-reg-data"></div>
+    <div class="campo-row">
+      <div class="campo-grupo">
+        <label class="campo-lbl">Veículo 1</label>
+        <select class="campo-sel" id="edit-reg-veiculo">
+          <option value="">— Nenhum —</option>
+          <option value="Ducato">Ducato</option>
+          <option value="Uno">Uno</option>
+          <option value="Siena">Siena</option>
+          <option value="Toro">Toro</option>
+          <option value="Civic">Civic</option>
+        </select>
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-lbl">KM 1</label>
+        <input class="campo-inp" type="number" id="edit-reg-km" min="0">
+      </div>
+    </div>
+    <div class="campo-row">
+      <div class="campo-grupo">
+        <label class="campo-lbl">Veículo 2</label>
+        <select class="campo-sel" id="edit-reg-veiculo2">
+          <option value="">— Nenhum —</option>
+          <option value="Ducato">Ducato</option>
+          <option value="Uno">Uno</option>
+          <option value="Siena">Siena</option>
+          <option value="Toro">Toro</option>
+          <option value="Civic">Civic</option>
+        </select>
+      </div>
+      <div class="campo-grupo">
+        <label class="campo-lbl">KM 2</label>
+        <input class="campo-inp" type="number" id="edit-reg-km2" min="0">
+      </div>
+    </div>
     <div class="campo-grupo"><label class="campo-lbl">Ocorrência</label><textarea class="campo-ta" id="edit-reg-ocorrencia"></textarea></div>
     <div class="campo-grupo"><label class="campo-lbl">Gastos extras (R$)</label><input class="campo-inp" type="number" id="edit-reg-extras" step="0.01" min="0"></div>
     <div class="campo-grupo"><label class="campo-lbl">Descrição do gasto extra</label><input class="campo-inp" type="text" id="edit-reg-extras-desc"></div>
@@ -1279,6 +1313,14 @@ function registrarCampo() {
   });
   if (equipe.length === 0) { toast('Informe a equipe presente'); return; }
 
+  // Validar KM obrigatório quando veículo selecionado
+  const temVeicCheck = document.getElementById('c-veiculo').value !== '';
+  const kmCheck = parseInt(document.getElementById('c-km').value) || 0;
+  if (temVeicCheck && kmCheck <= 0) { toast('Informe o KM do veículo 1'); return; }
+  const temVeic2Check = document.getElementById('c-veiculo2').value !== '';
+  const km2Check = parseInt(document.getElementById('c-km2').value) || 0;
+  if (temVeic2Check && km2Check <= 0) { toast('Informe o KM do veículo 2'); return; }
+
   const marmitas = parseInt(document.getElementById('c-marmitas').value)||0;
   const vlrMarm = parseFloat(document.getElementById('c-vlr-marmita').value)||0;
   const ali = marmitas * vlrMarm;
@@ -1705,6 +1747,10 @@ function abrirEditarRegistro(id) {
   if (!r) return;
   document.getElementById('edit-reg-id').value = id;
   document.getElementById('edit-reg-data').value = r.data || '';
+  document.getElementById('edit-reg-veiculo').value = r.veiculo || '';
+  document.getElementById('edit-reg-km').value = r.km || 0;
+  document.getElementById('edit-reg-veiculo2').value = r.veiculo2 || '';
+  document.getElementById('edit-reg-km2').value = r.km2 || 0;
   document.getElementById('edit-reg-ocorrencia').value = r.ocorrencia || '';
   document.getElementById('edit-reg-extras').value = r.gastoExtra || 0;
   document.getElementById('edit-reg-extras-desc').value = r.gastoExtraDesc || '';
@@ -1718,15 +1764,42 @@ function salvarEdicaoRegistro() {
   const id = document.getElementById('edit-reg-id').value;
   const idx = registros.findIndex(x => x.id === id);
   if (idx === -1) return;
-  registros[idx].data = document.getElementById('edit-reg-data').value;
-  registros[idx].ocorrencia = document.getElementById('edit-reg-ocorrencia').value.trim();
-  registros[idx].gastoExtra = parseFloat(document.getElementById('edit-reg-extras').value) || 0;
-  registros[idx].gastoExtraDesc = document.getElementById('edit-reg-extras-desc').value.trim();
-  registros[idx].progresso = parseInt(document.getElementById('edit-reg-progresso').value) || 0;
+  const r = registros[idx];
+
+  r.data = document.getElementById('edit-reg-data').value;
+  r.ocorrencia = document.getElementById('edit-reg-ocorrencia').value.trim();
+  r.gastoExtra = parseFloat(document.getElementById('edit-reg-extras').value) || 0;
+  r.gastoExtraDesc = document.getElementById('edit-reg-extras-desc').value.trim();
+  r.progresso = parseInt(document.getElementById('edit-reg-progresso').value) || 0;
+
+  // Veículos e KM
+  r.veiculo = document.getElementById('edit-reg-veiculo').value;
+  r.km = parseInt(document.getElementById('edit-reg-km').value) || 0;
+  r.veiculo2 = document.getElementById('edit-reg-veiculo2').value;
+  r.km2 = parseInt(document.getElementById('edit-reg-km2').value) || 0;
+
+  if (r.veiculo && r.km <= 0) { toast('Informe o KM do veículo 1'); return; }
+  if (r.veiculo2 && r.km2 <= 0) { toast('Informe o KM do veículo 2'); return; }
+
+  // Recalcular custos de veículo/combustível
+  const vfix = r.veiculo ? CUSTO.veic_fixo : 0;
+  const vfix2 = r.veiculo2 ? CUSTO.veic_fixo : 0;
+  const comb = r.km * CUSTO.km;
+  const comb2 = r.km2 * CUSTO.km;
+  r.custoVeic = vfix + vfix2 + comb + comb2;
+
+  // Recalcular custo total a partir dos componentes já existentes
+  const mo = r.custoMO || 0;
+  const ali = r.custoAli || 0;
+  const vt = r.custoVT || 0;
+  const equip = r.custoEquip || CUSTO.equip;
+  r.custoTotal = mo + ali + r.custoVeic + equip + vt + r.gastoExtra;
+
   salvar();
-  fbSalvarRegistro(registros[idx]);
+  fbSalvarRegistro(r);
   fecharModal('m-edit-reg');
   renderDash();
+  renderRegistros();
   toast('Registro atualizado ✓');
 }
 
