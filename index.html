@@ -676,7 +676,7 @@ function iniciarListeners() {
   onSnapshot(collection(db,'metas'), snap => { metas = snap.docs.map(d=>d.data()); renderDash(); renderMeta(); });
   onSnapshot(collection(db,'cronograma'), snap => { cronograma = snap.docs.map(d=>d.data()); renderSemana(); });
   onSnapshot(collection(db,'dispensas'), snap => { dispensas = snap.docs.map(d=>d.data()); renderDash(); });
-  onSnapshot(collection(db,'checklists'), snap => { checklists = snap.docs.map(d=>d.data()); renderDash(); renderEntrega(); });
+  onSnapshot(collection(db,'checklists'), snap => { checklists = snap.docs.map(d=>d.data()); renderDash(); });
 }
 
 // ===== CONSTANTES =====
@@ -1950,12 +1950,13 @@ function selecionarProjetoEntrega() {
     <div style="background:var(--vd);border-radius:14px;padding:16px;margin-bottom:20px;color:var(--branco)">
       <div style="font-size:11px;color:var(--vc);letter-spacing:1px;margin-bottom:6px">PROGRESSO DA ENTREGA</div>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:500">${totalMarcados}/${totalItens}</div>
-        <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--vc)">${pct}%</div>
+        <div id="entrega-progresso-num" style="font-family:'DM Mono',monospace;font-size:24px;font-weight:500">${totalMarcados}/${totalItens}</div>
+        <div id="entrega-progresso-pct" style="font-family:'DM Mono',monospace;font-size:20px;color:var(--vc)">${pct}%</div>
       </div>
-      <div class="ptrilha" style="margin-top:10px"><div class="pbarra ${pct>=100?'completo':''}" style="width:${pct}%"></div></div>
+      <div class="ptrilha" style="margin-top:10px"><div id="entrega-progresso-barra" class="pbarra ${pct>=100?'completo':''}" style="width:${pct}%"></div></div>
     </div>
     ${html}
+    <button class="btn-campo" style="margin-top:8px" onclick="concluirEntrega()">✓ Salvar / Concluir entrega</button>
   `;
 }
 
@@ -1984,7 +1985,9 @@ function marcarObsChecklist(si, valor) {
   cl.projetoNome = projEntrega.nome;
   const idx = checklists.findIndex(c => String(c.projetoId) === String(projEntrega.id));
   if (idx !== -1) checklists[idx] = cl; else checklists.push(cl);
-  fbSalvarChecklist(cl);
+  // Debounce: só salva no Firebase 800ms depois que a pessoa parar de digitar
+  clearTimeout(window._obsTimer);
+  window._obsTimer = setTimeout(() => fbSalvarChecklist(cl), 800);
 }
 
 function atualizarBarraEntrega() {
@@ -1994,11 +1997,31 @@ function atualizarBarraEntrega() {
     if (document.getElementById(`chk-${si}_${ii}`)?.checked) marc++;
   }));
   const pct = total > 0 ? Math.round(marc/total*100) : 0;
-  const cont = document.getElementById('entrega-conteudo');
-  if (!cont) return;
-  const num = cont.querySelector('[style*="DM Mono"]');
-  // Re-render simples da barra
-  renderEntrega();
+  const numEl = document.getElementById('entrega-progresso-num');
+  const pctEl = document.getElementById('entrega-progresso-pct');
+  const barEl = document.getElementById('entrega-progresso-barra');
+  if (numEl) numEl.textContent = `${marc}/${total}`;
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  if (barEl) {
+    barEl.style.width = `${pct}%`;
+    barEl.classList.toggle('completo', pct >= 100);
+  }
+}
+
+function concluirEntrega() {
+  if (!projEntrega) return;
+  let total = 0, marc = 0;
+  CHECKLIST_MODELO.forEach((sec, si) => sec.itens.forEach((item, ii) => {
+    total++;
+    if (document.getElementById(`chk-${si}_${ii}`)?.checked) marc++;
+  }));
+  const cl = getChecklistAtual();
+  fbSalvarChecklist(cl);
+  if (marc < total) {
+    toast(`Salvo · ${marc}/${total} itens marcados`);
+  } else {
+    toast('🎉 Checklist de entrega 100% concluído!');
+  }
 }
 
 // ===== GOOGLE CALENDAR API =====
@@ -2077,6 +2100,7 @@ window.renderEntrega = renderEntrega;
 window.selecionarProjetoEntrega = selecionarProjetoEntrega;
 window.marcarChecklist = marcarChecklist;
 window.marcarObsChecklist = marcarObsChecklist;
+window.concluirEntrega = concluirEntrega;
 window.irParaEntrega = irParaEntrega;
 window.cronSelecionarTipo = cronSelecionarTipo;
 window.salvarCronograma = salvarCronograma;
