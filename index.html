@@ -671,11 +671,11 @@ const db = getFirestore(app);
 // ===== FIREBASE =====
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwL7PlmRmEnnbfF4H-3q-q4F0OZ_zCk2ELO3E7Fc848pe5ClUhGjR2z1euaIvJyqFdC/exec';
 
-async function enviarSheets(tipo, dados) {
+async function enviarSheets(tipoAcao, dados) {
   try {
-    const dadosLimpos = { tipo };
+    const dadosLimpos = {};
     for (const [k, v] of Object.entries(dados)) {
-      if (k === 'tarefas' && tipo === 'registro' && Array.isArray(v)) {
+      if (k === 'tarefas' && tipoAcao === 'registro' && Array.isArray(v)) {
         // Registro: tarefas é array de objetos {texto, feita}
         dadosLimpos['tarefasFeitas'] = v.filter(t => t.feita).map(t => t.texto || t).join('|');
       } else if (Array.isArray(v)) {
@@ -685,6 +685,10 @@ async function enviarSheets(tipo, dados) {
         dadosLimpos[k] = v;
       }
     }
+    // IMPORTANTE: define tipoAcao DEPOIS do loop, para não ser sobrescrito
+    // por um campo do próprio objeto chamado "tipo" (ex: tipo da obra no projeto)
+    dadosLimpos.tipoAcao = tipoAcao;
+
     // Usar POST para suportar payloads maiores
     fetch(SHEETS_URL, {
       method: 'POST',
