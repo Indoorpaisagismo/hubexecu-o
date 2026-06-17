@@ -467,8 +467,10 @@
   <div class="modal">
     <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-projeto')">×</button>Novo projeto</div>
     <div class="campo-grupo"><label class="campo-lbl">Nome do cliente / projeto</label><input class="campo-inp" id="pj-nome" type="text" placeholder="Ex: Residência Silva"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Telefone do cliente (WhatsApp)</label><input class="campo-inp" id="pj-telefone" type="tel" placeholder="Ex: 43988366616"></div>
     <div class="campo-grupo"><label class="campo-lbl">Tipo</label><select class="campo-sel" id="pj-tipo"><option value="execucao">Execução</option><option value="manutencao">Manutenção</option><option value="irrigacao">Irrigação</option><option value="lago">Lago</option></select></div>
     <div class="campo-grupo"><label class="campo-lbl">Endereço / bairro</label><input class="campo-inp" id="pj-end" type="text" placeholder="Bairro, cidade"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Área (m²)</label><input class="campo-inp" id="pj-area" type="number" min="0" step="0.01" placeholder="Ex: 350"></div>
     <div class="campo-row" style="margin-bottom:16px">
       <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Início</label><input class="campo-inp" id="pj-ini" type="date"></div>
       <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Previsão fim</label><input class="campo-inp" id="pj-fim" type="date"></div>
@@ -501,6 +503,7 @@
     <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-proj')">×</button>Editar projeto</div>
     <input type="hidden" id="edit-proj-id">
     <div class="campo-grupo"><label class="campo-lbl">Nome do cliente / projeto</label><input class="campo-inp" id="edit-proj-nome" type="text"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Telefone do cliente (WhatsApp)</label><input class="campo-inp" id="edit-proj-telefone" type="tel"></div>
     <div class="campo-grupo"><label class="campo-lbl">Tipo</label>
       <select class="campo-sel" id="edit-proj-tipo">
         <option value="execucao">Execução</option>
@@ -510,6 +513,7 @@
       </select>
     </div>
     <div class="campo-grupo"><label class="campo-lbl">Endereço / bairro</label><input class="campo-inp" id="edit-proj-end" type="text"></div>
+    <div class="campo-grupo"><label class="campo-lbl">Área (m²)</label><input class="campo-inp" id="edit-proj-area" type="number" min="0" step="0.01"></div>
     <div class="campo-row" style="margin-bottom:16px">
       <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Início</label><input class="campo-inp" id="edit-proj-ini" type="date"></div>
       <div class="campo-grupo" style="margin-bottom:0"><label class="campo-lbl">Previsão fim</label><input class="campo-inp" id="edit-proj-fim" type="date"></div>
@@ -671,9 +675,11 @@ async function enviarSheets(tipo, dados) {
   try {
     const dadosLimpos = { tipo };
     for (const [k, v] of Object.entries(dados)) {
-      if (k === 'tarefas' && Array.isArray(v)) {
+      if (k === 'tarefas' && tipo === 'registro' && Array.isArray(v)) {
+        // Registro: tarefas é array de objetos {texto, feita}
         dadosLimpos['tarefasFeitas'] = v.filter(t => t.feita).map(t => t.texto || t).join('|');
       } else if (Array.isArray(v)) {
+        // Projeto/Meta: tarefas (ou outros arrays) são listas simples de texto
         dadosLimpos[k] = v.join('|');
       } else if (v !== null && v !== undefined) {
         dadosLimpos[k] = v;
@@ -1059,7 +1065,9 @@ function salvarProjeto() {
   const p = {
     id: Date.now().toString(),
     nome, tipo: document.getElementById('pj-tipo').value,
+    telefone: document.getElementById('pj-telefone').value.trim(),
     endereco: document.getElementById('pj-end').value.trim(),
+    area: document.getElementById('pj-area').value,
     inicio: document.getElementById('pj-ini').value,
     fim: document.getElementById('pj-fim').value,
     custoPrevisto: document.getElementById('pj-custo-prev').value,
@@ -1074,7 +1082,7 @@ function salvarProjeto() {
   fecharModal('m-projeto');
   renderProjetos();
   toast('Projeto cadastrado ✓');
-  ['pj-nome','pj-end','pj-ini','pj-fim','pj-custo-prev','pj-contrato','pj-tarefas','pj-obs'].forEach(id => document.getElementById(id).value='');
+  ['pj-nome','pj-telefone','pj-end','pj-area','pj-ini','pj-fim','pj-custo-prev','pj-contrato','pj-tarefas','pj-obs'].forEach(id => document.getElementById(id).value='');
 }
 
 function verDetalhes(id) {
@@ -1099,6 +1107,7 @@ function verDetalhes(id) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div><div style="font-size:11px;color:var(--txts)">Início</div><div style="font-size:14px;font-weight:500">${fmtData(p.inicio)}</div></div>
       <div><div style="font-size:11px;color:var(--txts)">Previsão</div><div style="font-size:14px;font-weight:500">${fmtData(p.fim)}</div></div>
+      ${p.area ? `<div><div style="font-size:11px;color:var(--txts)">Área</div><div style="font-size:14px;font-weight:500">${p.area} m²</div></div>` : ''}
     </div>
     <div style="margin-bottom:16px">
       <div class="plbl"><span>Conclusão</span><span>${p.progresso||0}%</span></div>
@@ -1377,7 +1386,19 @@ function registrarCampo() {
   if (idx !== -1) projetos[idx].progresso = novoProgresso;
   salvar();
   fbSalvarRegistro({ ...reg, projetoNome: projCampo.nome });
-  fbAtualizarProjeto(projCampo.id, { progresso: novoProgresso });
+
+  // Atualizar progresso (e data de conclusão, se chegou a 100%)
+  const dadosAtualizacao = { progresso: novoProgresso };
+  if (novoProgresso >= 100) {
+    dadosAtualizacao.dataConclusao = hoje();
+  }
+  fbAtualizarProjeto(projCampo.id, dadosAtualizacao);
+  // Sincronizar projeto completo com o Sheets (updateDoc não dispara enviarSheets)
+  if (idx !== -1) {
+    const projAtualizado = { ...projetos[idx], ...dadosAtualizacao };
+    projetos[idx] = projAtualizado;
+    enviarSheets('projeto', projAtualizado);
+  }
 
   // 🗓 CALENDÁRIO: se chegou em 100%, criar evento automaticamente via API
   if (novoProgresso >= 100) {
@@ -1448,11 +1469,13 @@ function renderSemana() {
 
     let items = '';
     itensCron.forEach(c => {
-      const cor = c.tipo === 'manual' ? 'var(--terra)' : 'var(--vm)';
+      const cor = c.executado ? 'var(--ok)' : (c.tipo === 'manual' ? 'var(--terra)' : 'var(--vm)');
       const proj = c.tipo === 'projeto' ? (projetos.find(p => String(p.id) === String(c.projetoId)) || {}).nome : '';
       const texto = c.tipo === 'manual' ? c.descricao : `${proj || ''}${c.tarefa ? ' — ' + c.tarefa : ''}`;
-      items += `<div class="cron-item" style="border-left:3px solid ${cor};display:flex;justify-content:space-between;align-items:center;gap:6px">
-        <span style="flex:1;cursor:pointer" onclick="abrirEditarCronograma('${c.id}')">${texto}</span>
+      const estiloTexto = c.executado ? 'text-decoration:line-through;color:var(--txts)' : '';
+      items += `<div class="cron-item" style="border-left:3px solid ${cor};display:flex;justify-content:space-between;align-items:center;gap:6px;background:${c.executado?'#E8F4E8':'var(--bg)'}">
+        <input type="checkbox" ${c.executado?'checked':''} onchange="marcarExecutadoCronograma('${c.id}',this.checked)" style="flex-shrink:0;width:16px;height:16px;cursor:pointer">
+        <span style="flex:1;cursor:pointer;${estiloTexto}" onclick="abrirEditarCronograma('${c.id}')">${texto}</span>
         <span style="cursor:pointer;color:var(--txts);font-size:13px" onclick="abrirEditarCronograma('${c.id}')">✏️</span>
         <span style="cursor:pointer;color:var(--erro);font-size:13px" onclick="apagarCronograma('${c.id}')">✕</span>
       </div>`;
@@ -1591,6 +1614,15 @@ function apagarCronograma(id) {
   toast('Item removido');
 }
 
+function marcarExecutadoCronograma(id, executado) {
+  const idx = cronograma.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  cronograma[idx].executado = executado;
+  fbSalvarCronograma(cronograma[idx]);
+  renderSemana();
+  toast(executado ? 'Marcado como executado ✓' : 'Desmarcado');
+}
+
 // ===== PIN & GESTOR =====
 const PIN_GESTOR = '9033';
 let acaoPendente = null;
@@ -1628,6 +1660,7 @@ function abrirModalEditProj() {
   document.getElementById('edit-proj-nome').value = p.nome || '';
   document.getElementById('edit-proj-tipo').value = p.tipo || 'execucao';
   document.getElementById('edit-proj-end').value = p.endereco || '';
+  document.getElementById('edit-proj-area').value = p.area || '';
   document.getElementById('edit-proj-ini').value = p.inicio || '';
   document.getElementById('edit-proj-fim').value = p.fim || '';
   document.getElementById('edit-proj-custo').value = p.custoPrevisto || '';
@@ -1646,6 +1679,7 @@ function salvarEdicaoProjeto() {
     nome: document.getElementById('edit-proj-nome').value.trim(),
     tipo: document.getElementById('edit-proj-tipo').value,
     endereco: document.getElementById('edit-proj-end').value.trim(),
+    area: document.getElementById('edit-proj-area').value,
     inicio: document.getElementById('edit-proj-ini').value,
     fim: document.getElementById('edit-proj-fim').value,
     custoPrevisto: document.getElementById('edit-proj-custo').value,
@@ -2221,6 +2255,7 @@ window.irParaEntrega = irParaEntrega;
 window.cronSelecionarTipo = cronSelecionarTipo;
 window.salvarCronograma = salvarCronograma;
 window.apagarCronograma = apagarCronograma;
+window.marcarExecutadoCronograma = marcarExecutadoCronograma;
 window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.salvarMeta = salvarMeta;
 window.selecionarProjetoCampo = selecionarProjetoCampo;
