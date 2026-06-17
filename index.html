@@ -549,6 +549,15 @@
     <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-reg')">×</button>Editar registro</div>
     <input type="hidden" id="edit-reg-id">
     <div class="campo-grupo"><label class="campo-lbl">Data</label><input class="campo-inp" type="date" id="edit-reg-data"></div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">Equipe presente</label>
+      <div class="equipe-grid" id="edit-reg-equipe-grid">
+        <div class="eq-item"><div><div class="eq-nome">Gerente</div><div class="eq-diaria">R$ 255,34</div></div><input type="number" min="0" max="10" value="0" data-funcao="Gerente" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-nome">Encarregado</div><div class="eq-diaria">R$ 220,68</div></div><input type="number" min="0" max="10" value="0" data-funcao="Encarregado" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-nome">Jardineiro</div><div class="eq-diaria">R$ 172,11</div></div><input type="number" min="0" max="10" value="0" data-funcao="Jardineiro" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+        <div class="eq-item"><div><div class="eq-nome">Diarista</div><div class="eq-diaria">R$ 110,00</div></div><input type="number" min="0" max="10" value="0" data-funcao="Diarista" class="eq-qtd campo-inp" style="width:60px;padding:6px;text-align:center"></div>
+      </div>
+    </div>
     <div class="campo-row">
       <div class="campo-grupo">
         <label class="campo-lbl">Veículo 1</label>
@@ -1035,7 +1044,7 @@ function renderProjetos() {
       <div class="acoes">
         <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
         <button class="btn-acao" onclick="confirmarPINProjeto('${p.id}')">✏️ Editar</button>
-        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');salvar();renderProjetos();toast('Arquivado');}">Arquivar</button>
+        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');fbDeletar('checklists','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');checklists=checklists.filter(c=>String(c.projetoId)!=='${p.id}');salvar();renderProjetos();renderDash();toast('Arquivado');}">Arquivar</button>
       </div>
     </div>`;
   }).join('');
@@ -1313,12 +1322,14 @@ function registrarCampo() {
   });
   if (equipe.length === 0) { toast('Informe a equipe presente'); return; }
 
-  // Validar KM obrigatório quando veículo selecionado
+  // Validar veículo obrigatório (pelo menos 1) e KM obrigatório quando veículo selecionado
   const temVeicCheck = document.getElementById('c-veiculo').value !== '';
   const kmCheck = parseInt(document.getElementById('c-km').value) || 0;
-  if (temVeicCheck && kmCheck <= 0) { toast('Informe o KM do veículo 1'); return; }
   const temVeic2Check = document.getElementById('c-veiculo2').value !== '';
   const km2Check = parseInt(document.getElementById('c-km2').value) || 0;
+
+  if (!temVeicCheck && !temVeic2Check) { toast('Selecione pelo menos 1 veículo'); return; }
+  if (temVeicCheck && kmCheck <= 0) { toast('Informe o KM do veículo 1'); return; }
   if (temVeic2Check && km2Check <= 0) { toast('Informe o KM do veículo 2'); return; }
 
   const marmitas = parseInt(document.getElementById('c-marmitas').value)||0;
@@ -1755,6 +1766,18 @@ function abrirEditarRegistro(id) {
   document.getElementById('edit-reg-extras').value = r.gastoExtra || 0;
   document.getElementById('edit-reg-extras-desc').value = r.gastoExtraDesc || '';
   document.getElementById('edit-reg-progresso').value = r.progresso || 0;
+
+  // Resetar e preencher grid de equipe a partir do array salvo (ex: "2x Jardineiro")
+  document.querySelectorAll('#edit-reg-equipe-grid .eq-qtd').forEach(inp => inp.value = '0');
+  (r.equipe || []).forEach(item => {
+    const match = item.match(/^(\d+)x\s+(.+)$/);
+    if (match) {
+      const qtd = match[1], funcao = match[2];
+      const inp = document.querySelector(`#edit-reg-equipe-grid .eq-qtd[data-funcao="${funcao}"]`);
+      if (inp) inp.value = qtd;
+    }
+  });
+
   confirmarPIN('abrirModalEditReg');
 }
 
@@ -1771,6 +1794,24 @@ function salvarEdicaoRegistro() {
   r.gastoExtra = parseFloat(document.getElementById('edit-reg-extras').value) || 0;
   r.gastoExtraDesc = document.getElementById('edit-reg-extras-desc').value.trim();
   r.progresso = parseInt(document.getElementById('edit-reg-progresso').value) || 0;
+
+  // Equipe — ler quantidades do grid e recalcular custo de mão de obra + VT
+  const equipe = [];
+  let totalPessoas = 0;
+  let custoMO = 0;
+  document.querySelectorAll('#edit-reg-equipe-grid .eq-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value) || 0;
+    if (qtd > 0) {
+      const funcao = inp.dataset.funcao;
+      equipe.push(`${qtd}x ${funcao}`);
+      totalPessoas += qtd;
+      custoMO += qtd * (EQUIPE_VALS[funcao] || 0);
+    }
+  });
+  if (equipe.length === 0) { toast('Informe pelo menos um membro da equipe'); return; }
+  r.equipe = equipe;
+  r.custoMO = custoMO;
+  r.custoVT = totalPessoas * CUSTO.vt;
 
   // Veículos e KM
   r.veiculo = document.getElementById('edit-reg-veiculo').value;
@@ -1874,9 +1915,11 @@ function renderChecklistPendencias() {
   let totalModelo = 0;
   CHECKLIST_MODELO.forEach(s => totalModelo += s.itens.length);
 
-  // Projetos que têm checklist iniciado mas não 100% completo
+  // Projetos que têm checklist iniciado mas não 100% completo — apenas projetos ATIVOS
+  const idsAtivos = new Set(projetos.filter(p => p.progresso < 100).map(p => String(p.id)));
   const pendentes = [];
   checklists.forEach(cl => {
+    if (!idsAtivos.has(String(cl.projetoId))) return; // ignora arquivados
     const marcados = Object.values(cl.marcados || {}).filter(v => v).length;
     if (marcados > 0 && marcados < totalModelo) {
       pendentes.push({ nome: cl.projetoNome || '—', marcados, total: totalModelo, faltam: totalModelo - marcados });
