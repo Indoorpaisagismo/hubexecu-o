@@ -241,6 +241,9 @@
   <div class="stit" style="margin-top:20px">Meta do dia</div>
   <div id="d-meta-hoje"></div>
 
+  <div class="stit" style="margin-top:20px">Produtividade mensal</div>
+  <div id="d-card-mensal"></div>
+
   <div class="stit" style="margin-top:20px">Registros de campo hoje</div>
   <div id="d-registros-hoje"></div>
 </div>
@@ -910,6 +913,7 @@ function togglePendencias() {
 function renderDash() {
   renderPendencias();
   renderChecklistPendencias();
+  renderCardMensal();
   const ativos = projetos.filter(p => p.progresso < 100);
   const atrasados = projetos.filter(p => p.progresso < 100 && diasR(p.fim) !== null && diasR(p.fim) < 0);
   const concluidos = projetos.filter(p => p.progresso >= 100);
@@ -984,13 +988,22 @@ function renderDash() {
   } else {
     md.innerHTML = metasHoje.map(meta => {
       const proj = projetos.find(p => p.id === meta.projetoId);
+      const tarefas = meta.tarefas || [];
+      const checks = meta.tarefasCheck || {};
+      const feitas = tarefas.filter((t,i) => checks[i]).length;
+      const pct = tarefas.length > 0 ? Math.round(feitas/tarefas.length*100) : 0;
       return `
       <div class="md-card">
         <div class="md-header">
           <div><div class="md-projeto">${proj ? proj.nome : '—'}</div><div class="md-equipe">👥 ${(meta.equipe||[]).join(', ')}</div></div>
-          <span class="ptag exec">${meta.tarefas ? meta.tarefas.length : 0} tarefas</span>
+          <span class="ptag exec">${feitas}/${tarefas.length} tarefas</span>
         </div>
-        ${(meta.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
+        <div class="ptrilha" style="margin-bottom:10px"><div class="pbarra ${pct>=100?'completo':''}" style="width:${pct}%"></div></div>
+        ${tarefas.map((t,i)=>`
+          <div class="md-tarefa" style="${checks[i]?'text-decoration:line-through;color:var(--txts);':''}">
+            <input type="checkbox" ${checks[i]?'checked':''} onchange="marcarTarefaMeta('${meta.id}',${i},this.checked)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
+            <span>${t}</span>
+          </div>`).join('')}
         ${meta.obs ? `<div class="md-obs">📝 ${meta.obs}</div>` : ''}
       </div>`;
     }).join('');
@@ -1162,8 +1175,16 @@ function renderMeta() {
             <div class="md-projeto">${proj ? proj.nome : '—'} ${isHoje?'<span class="badge verde">Hoje</span>':''}</div>
             <div class="md-equipe">${fmtData(m.data)} · 👥 ${(m.equipe||[]).join(', ')}</div>
           </div>
+          <span class="ptag exec">${((m.tarefasCheck&&Object.values(m.tarefasCheck).filter(v=>v).length)||0)}/${(m.tarefas||[]).length}</span>
         </div>
-        ${(m.tarefas||[]).map(t=>`<div class="md-tarefa">${t}</div>`).join('')}
+        <div class="ptrilha" style="margin-bottom:10px"><div class="pbarra" style="width:${(m.tarefas&&m.tarefas.length>0?Math.round(Object.values(m.tarefasCheck||{}).filter(v=>v).length/m.tarefas.length*100):0)}%"></div></div>
+        ${(m.tarefas||[]).map((t,i)=>{
+          const feita = m.tarefasCheck && m.tarefasCheck[i];
+          return `<div class="md-tarefa" style="${feita?'text-decoration:line-through;color:var(--txts);':''}">
+            <input type="checkbox" ${feita?'checked':''} onchange="marcarTarefaMeta('${m.id}',${i},this.checked)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
+            <span>${t}</span>
+          </div>`;
+        }).join('')}
         ${m.obs?`<div class="md-obs">📝 ${m.obs}</div>`:''}
         <div class="acoes-gestor">
           <button class="btn-gestor" onclick="abrirEditarMeta('${m.id}')">✏️ Editar</button>
@@ -1882,6 +1903,95 @@ function salvarEdicaoRegistro() {
   toast('Registro atualizado ✓');
 }
 
+// ===== MARCA TAREFA DA META =====
+function marcarTarefaMeta(metaId, idx, checked) {
+  const meta = metas.find(m => m.id === metaId);
+  if (!meta) return;
+  meta.tarefasCheck = { ...(meta.tarefasCheck || {}), [idx]: checked };
+  fbSalvarMeta(meta);
+  renderDash();
+  renderMeta();
+}
+
+// ===== CARD MENSAL DE TAREFAS =====
+let mesSelecionado = new Date().getMonth();
+let anoSelecionado = new Date().getFullYear();
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function renderCardMensal() {
+  const el = document.getElementById('d-card-mensal');
+  if (!el) return;
+
+  // Filtrar metas do mês selecionado
+  const metasMes = metas.filter(m => {
+    if (!m.data) return false;
+    const [ano, mes] = m.data.split('-').map(Number);
+    return mes - 1 === mesSelecionado && ano === anoSelecionado;
+  });
+
+  // Calcular tarefas totais e feitas
+  let totalTarefas = 0, totalFeitas = 0;
+  const porProjeto = {};
+
+  metasMes.forEach(m => {
+    const tarefas = m.tarefas || [];
+    const checks = m.tarefasCheck || {};
+    const feitas = tarefas.filter((t,i) => checks[i]).length;
+    totalTarefas += tarefas.length;
+    totalFeitas += feitas;
+
+    const proj = projetos.find(p => String(p.id) === String(m.projetoId));
+    const nome = proj ? proj.nome : 'Sem projeto';
+    if (!porProjeto[nome]) porProjeto[nome] = { total: 0, feitas: 0 };
+    porProjeto[nome].total += tarefas.length;
+    porProjeto[nome].feitas += feitas;
+  });
+
+  const pct = totalTarefas > 0 ? Math.round(totalFeitas/totalTarefas*100) : 0;
+
+  const podeMesAnterior = !(mesSelecionado === 0 && anoSelecionado === new Date().getFullYear() - 2);
+  const podeMesSeguinte = !(mesSelecionado === new Date().getMonth() && anoSelecionado === new Date().getFullYear());
+
+  el.innerHTML = `
+    <div style="background:var(--branco);border-radius:14px;padding:16px;border:1px solid var(--bge);margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <button onclick="mudarMes(-1)" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--vm);padding:0 6px" ${!podeMesAnterior?'disabled':''}>‹</button>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--txts);letter-spacing:1px;text-transform:uppercase">Tarefas executadas</div>
+          <div style="font-size:14px;font-weight:600;color:var(--vd)">${MESES[mesSelecionado]} ${anoSelecionado}</div>
+        </div>
+        <button onclick="mudarMes(1)" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--vm);padding:0 6px" ${!podeMesSeguinte?'disabled':''}>›</button>
+      </div>
+
+      ${totalTarefas === 0
+        ? `<div style="text-align:center;color:var(--txts);font-size:13px;padding:16px 0">Nenhuma meta registrada neste mês</div>`
+        : `
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px">
+          <div style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:var(--vd)">${totalFeitas}<span style="font-size:16px;color:var(--txts)">/${totalTarefas}</span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;color:${pct>=80?'var(--ok)':pct>=50?'var(--alerta)':'var(--erro)'}">${pct}%</div>
+        </div>
+        <div class="ptrilha" style="margin-bottom:14px"><div class="pbarra ${pct>=100?'completo':''}" style="width:${pct}%;background:${pct>=80?'var(--ok)':pct>=50?'var(--alerta)':'var(--erro)'}"></div></div>
+        <div style="border-top:1px solid var(--bge);padding-top:10px">
+          ${Object.entries(porProjeto).sort((a,b)=>b[1].total-a[1].total).map(([nome,v])=>{
+            const p = v.total > 0 ? Math.round(v.feitas/v.total*100) : 0;
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bg)">
+              <div style="font-size:12px;color:var(--txt);flex:1;margin-right:8px">🌿 ${nome}</div>
+              <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--txts)">${v.feitas}/${v.total}</div>
+              <div style="font-size:11px;font-weight:600;color:${p>=80?'var(--ok)':p>=50?'var(--alerta)':'var(--erro)'};margin-left:8px;width:36px;text-align:right">${p}%</div>
+            </div>`;
+          }).join('')}
+        </div>`
+      }
+    </div>`;
+}
+
+function mudarMes(dir) {
+  mesSelecionado += dir;
+  if (mesSelecionado > 11) { mesSelecionado = 0; anoSelecionado++; }
+  if (mesSelecionado < 0) { mesSelecionado = 11; anoSelecionado--; }
+  renderCardMensal();
+}
+
 // ===== REGISTROS =====
 function renderRegistros() {
   // Popular filtro de projetos
@@ -2247,6 +2357,9 @@ window.verDetalhes = verDetalhes;
 window.togglePendencias = togglePendencias;
 window.dispensarDia = dispensarDia;
 window.executarDispensa = executarDispensa;
+window.marcarTarefaMeta = marcarTarefaMeta;
+window.mudarMes = mudarMes;
+window.renderCardMensal = renderCardMensal;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
 window.abrirEditarCronograma = abrirEditarCronograma;
