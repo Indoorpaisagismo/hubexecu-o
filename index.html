@@ -458,11 +458,49 @@
 <!-- ===== SEMANA ===== -->
 
 <div class="aba" id="aba-semana">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <span class="stit" id="semana-tit" style="margin-bottom:0">Cronograma quinzenal</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <span class="stit" id="semana-tit" style="margin-bottom:0">Cronograma</span>
     <button class="btn-acao p" style="padding:8px 14px;border-radius:10px" onclick="abrirAddCronograma('')">+ Adicionar</button>
   </div>
+
+  <!-- Toggle lista / calendário -->
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button id="toggle-lista" onclick="alternarViewCronograma('lista')" style="flex:1;padding:9px;border-radius:10px;border:none;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;background:var(--vd);color:var(--branco);cursor:pointer">☰ Lista</button>
+    <button id="toggle-cal" onclick="alternarViewCronograma('cal')" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--bge);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;background:var(--bg);color:var(--txt);cursor:pointer">📅 Calendário</button>
+  </div>
+
+  <!-- Controles do calendário (ocultos por padrão) -->
+  <div id="cal-controles" style="display:none;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <button onclick="mudarMesCal(-1)" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--vm);padding:0 8px">‹</button>
+      <div style="text-align:center">
+        <div id="cal-mes-titulo" style="font-size:15px;font-weight:700;color:var(--vd)"></div>
+      </div>
+      <button onclick="mudarMesCal(1)" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--vm);padding:0 8px">›</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div class="campo-grupo" style="flex:1;margin-bottom:0">
+        <label class="campo-lbl">De</label>
+        <input class="campo-inp" type="date" id="cal-filtro-ini" onchange="renderCalendario()" style="padding:8px">
+      </div>
+      <div class="campo-grupo" style="flex:1;margin-bottom:0">
+        <label class="campo-lbl">Até</label>
+        <input class="campo-inp" type="date" id="cal-filtro-fim" onchange="renderCalendario()" style="padding:8px">
+      </div>
+    </div>
+    <!-- Legenda de cores -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2C5F2E;display:inline-block"></span>Execução</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#1565C0;display:inline-block"></span>Manutenção</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Irrigação</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#A67C52;display:inline-block"></span>Avulso</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2E7D32;display:inline-block"></span>Outros</span>
+    </div>
+    <button onclick="imprimirCalendario()" style="width:100%;padding:10px;background:var(--vd);color:var(--branco);border:none;border-radius:10px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer">🖨️ Imprimir calendário</button>
+  </div>
+
   <div id="semana-grid"></div>
+  <div id="cal-grid" style="display:none"></div>
 </div>
 
 <!-- ===== MODAL PROJETO ===== -->
@@ -1566,6 +1604,231 @@ function renderSemana() {
     `${inicio.getDate()}/${inicio.getMonth()+1} — ${fim.getDate()}/${fim.getMonth()+1}`;
 }
 
+// ===== CALENDÁRIO VISUAL DO CRONOGRAMA =====
+let viewCronograma = 'lista';
+let calMes = new Date().getMonth();
+let calAno = new Date().getFullYear();
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function corTipoProjeto(proj) {
+  if (!proj) return '#A67C52'; // avulso
+  const tipo = (proj.tipo || '').toLowerCase();
+  if (tipo.includes('exec')) return '#2C5F2E';
+  if (tipo.includes('manu')) return '#1565C0';
+  if (tipo.includes('irrig') || tipo.includes('lago')) return '#6A0DAD';
+  return '#2E7D32';
+}
+
+function alternarViewCronograma(view) {
+  viewCronograma = view;
+  const btnLista = document.getElementById('toggle-lista');
+  const btnCal = document.getElementById('toggle-cal');
+  const semanaGrid = document.getElementById('semana-grid');
+  const calGrid = document.getElementById('cal-grid');
+  const calControles = document.getElementById('cal-controles');
+
+  if (view === 'lista') {
+    btnLista.style.background = 'var(--vd)'; btnLista.style.color = 'var(--branco)'; btnLista.style.border = 'none';
+    btnCal.style.background = 'var(--bg)'; btnCal.style.color = 'var(--txt)'; btnCal.style.border = '1px solid var(--bge)';
+    semanaGrid.style.display = ''; calGrid.style.display = 'none'; calControles.style.display = 'none';
+    renderSemana();
+  } else {
+    btnCal.style.background = 'var(--vd)'; btnCal.style.color = 'var(--branco)'; btnCal.style.border = 'none';
+    btnLista.style.background = 'var(--bg)'; btnLista.style.color = 'var(--txt)'; btnLista.style.border = '1px solid var(--bge)';
+    semanaGrid.style.display = 'none'; calGrid.style.display = ''; calControles.style.display = '';
+    renderCalendario();
+  }
+}
+
+function mudarMesCal(dir) {
+  calMes += dir;
+  if (calMes > 11) { calMes = 0; calAno++; }
+  if (calMes < 0)  { calMes = 11; calAno--; }
+  // Limpa filtro de datas ao navegar pelo mês
+  document.getElementById('cal-filtro-ini').value = '';
+  document.getElementById('cal-filtro-fim').value = '';
+  renderCalendario();
+}
+
+function renderCalendario() {
+  const el = document.getElementById('cal-grid');
+  const titulo = document.getElementById('cal-mes-titulo');
+  if (!el) return;
+
+  // Filtro de datas
+  const filtroIni = document.getElementById('cal-filtro-ini').value;
+  const filtroFim = document.getElementById('cal-filtro-fim').value;
+
+  // Se há filtro de datas, ajusta o mês ao período
+  let mesRef = calMes, anoRef = calAno;
+  if (filtroIni) {
+    const d = new Date(filtroIni + 'T12:00:00');
+    mesRef = d.getMonth(); anoRef = d.getFullYear();
+    calMes = mesRef; calAno = anoRef;
+  }
+
+  titulo.textContent = `${MESES_PT[mesRef]} ${anoRef}`;
+
+  // Montar calendário
+  const primeiroDia = new Date(anoRef, mesRef, 1).getDay(); // 0=dom
+  const diasNoMes = new Date(anoRef, mesRef + 1, 0).getDate();
+
+  // Agrupar itens por data
+  const itensPorData = {};
+  cronograma.forEach(c => {
+    if (!c.data) return;
+    // Filtro de período
+    if (filtroIni && c.data < filtroIni) return;
+    if (filtroFim && c.data > filtroFim) return;
+    // Filtro de mês (se não houver filtro de datas)
+    if (!filtroIni && !filtroFim) {
+      const [a, m] = c.data.split('-').map(Number);
+      if (m - 1 !== mesRef || a !== anoRef) return;
+    }
+    if (!itensPorData[c.data]) itensPorData[c.data] = [];
+    itensPorData[c.data].push(c);
+  });
+
+  // Grid de cabeçalho
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
+  DIAS_PT.forEach(d => {
+    const fim = d === 'Dom' || d === 'Sáb';
+    html += `<div style="text-align:center;font-size:10px;font-weight:700;color:${fim?'var(--txts)':'var(--vd)'};padding:4px 0">${d}</div>`;
+  });
+  html += `</div>`;
+
+  // Grid dos dias
+  html += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">`;
+
+  // Células vazias antes do primeiro dia
+  for (let i = 0; i < primeiroDia; i++) {
+    html += `<div style="min-height:70px;background:var(--bg);border-radius:6px;opacity:0.3"></div>`;
+  }
+
+  const hj = hoje();
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const ds = `${anoRef}-${String(mesRef+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    const isHoje = ds === hj;
+    const dow = new Date(ds + 'T12:00:00').getDay();
+    const fimSem = dow === 0 || dow === 6;
+    const itens = itensPorData[ds] || [];
+
+    html += `<div style="min-height:70px;background:${isHoje?'#E8F5E9':fimSem?'var(--bg)':'var(--branco)'};border-radius:6px;border:${isHoje?'2px solid var(--ok)':'1px solid var(--bge)'};padding:4px;overflow:hidden">
+      <div style="font-size:11px;font-weight:${isHoje?'700':'500'};color:${isHoje?'var(--ok)':fimSem?'var(--txts)':'var(--txt)'};margin-bottom:3px">${dia}</div>`;
+
+    itens.forEach(c => {
+      const proj = projetos.find(p => String(p.id) === String(c.projetoId));
+      const cor = c.tipo === 'manual' ? '#A67C52' : corTipoProjeto(proj);
+      const texto = c.tipo === 'manual' ? c.descricao : (proj ? proj.nome : '—') + (c.tarefa ? ` · ${c.tarefa}` : '');
+      const riscado = c.executado ? 'text-decoration:line-through;opacity:0.6' : '';
+      html += `<div style="background:${cor};color:#fff;border-radius:3px;padding:2px 4px;font-size:9px;line-height:1.3;margin-bottom:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${riscado}" title="${texto}">${texto}</div>`;
+    });
+
+    html += `</div>`;
+  }
+
+  // Células vazias após o último dia
+  const totalCelulas = primeiroDia + diasNoMes;
+  const restantes = totalCelulas % 7 === 0 ? 0 : 7 - (totalCelulas % 7);
+  for (let i = 0; i < restantes; i++) {
+    html += `<div style="min-height:70px;background:var(--bg);border-radius:6px;opacity:0.3"></div>`;
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function imprimirCalendario() {
+  const mesRef = calMes, anoRef = calAno;
+  const titulo = `${MESES_PT[mesRef]} ${anoRef} — Cronograma INDOOR Paisagismo`;
+  const filtroIni = document.getElementById('cal-filtro-ini').value;
+  const filtroFim = document.getElementById('cal-filtro-fim').value;
+
+  const primeiroDia = new Date(anoRef, mesRef, 1).getDay();
+  const diasNoMes = new Date(anoRef, mesRef + 1, 0).getDate();
+
+  const itensPorData = {};
+  cronograma.forEach(c => {
+    if (!c.data) return;
+    if (filtroIni && c.data < filtroIni) return;
+    if (filtroFim && c.data > filtroFim) return;
+    if (!filtroIni && !filtroFim) {
+      const [a, m] = c.data.split('-').map(Number);
+      if (m - 1 !== mesRef || a !== anoRef) return;
+    }
+    if (!itensPorData[c.data]) itensPorData[c.data] = [];
+    itensPorData[c.data].push(c);
+  });
+
+  let grid = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">`;
+  DIAS_PT.forEach(d => {
+    const fim = d === 'Dom' || d === 'Sáb';
+    grid += `<div style="text-align:center;font-size:11px;font-weight:700;color:${fim?'#999':'#2C3E2D'};padding:4px 0;border-bottom:2px solid #2C3E2D">${d}</div>`;
+  });
+  grid += `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">`;
+
+  for (let i = 0; i < primeiroDia; i++) {
+    grid += `<div style="min-height:90px;background:#f5f5f5;border-radius:6px"></div>`;
+  }
+
+  const hj = hoje();
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const ds = `${anoRef}-${String(mesRef+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    const isHoje = ds === hj;
+    const dow = new Date(ds + 'T12:00:00').getDay();
+    const fimSem = dow === 0 || dow === 6;
+    const itens = itensPorData[ds] || [];
+
+    grid += `<div style="min-height:90px;background:${isHoje?'#E8F5E9':fimSem?'#fafafa':'#fff'};border-radius:6px;border:${isHoje?'2px solid #27AE60':'1px solid #ddd'};padding:5px;overflow:hidden">
+      <div style="font-size:13px;font-weight:700;color:${isHoje?'#27AE60':fimSem?'#aaa':'#2C3E2D'};margin-bottom:4px">${dia}</div>`;
+
+    itens.forEach(c => {
+      const proj = projetos.find(p => String(p.id) === String(c.projetoId));
+      const cor = c.tipo === 'manual' ? '#A67C52' : corTipoProjeto(proj);
+      const texto = c.tipo === 'manual' ? c.descricao : (proj ? proj.nome : '—') + (c.tarefa ? ` · ${c.tarefa}` : '');
+      const riscado = c.executado ? 'text-decoration:line-through;opacity:0.5' : '';
+      grid += `<div style="background:${cor};color:#fff;border-radius:4px;padding:3px 5px;font-size:9px;line-height:1.3;margin-bottom:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${riscado}">${texto}</div>`;
+    });
+    grid += `</div>`;
+  }
+
+  const totalCelulas = primeiroDia + diasNoMes;
+  const restantes = totalCelulas % 7 === 0 ? 0 : 7 - (totalCelulas % 7);
+  for (let i = 0; i < restantes; i++) {
+    grid += `<div style="min-height:90px;background:#f5f5f5;border-radius:6px"></div>`;
+  }
+  grid += `</div>`;
+
+  const legenda = `<div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#2C5F2E;display:inline-block"></span>Execução</span>
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#1565C0;display:inline-block"></span>Manutenção</span>
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Irrigação</span>
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#A67C52;display:inline-block"></span>Avulso</span>
+  </div>`;
+
+  const janela = window.open('', '_blank');
+  janela.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
+  <style>
+    @page { size: A4 landscape; margin: 15mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'DM Sans', Arial, sans-serif; }
+    body { padding: 0; background: #fff; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #2C3E2D;padding-bottom:10px">
+    <div>
+      <div style="font-size:20px;font-weight:700;color:#2C3E2D">${titulo}</div>
+      <div style="font-size:11px;color:#666;margin-top:2px">Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:#2C3E2D">INDOOR Paisagismo</div>
+  </div>
+  ${grid}
+  ${legenda}
+  <script>window.onload = function(){ window.print(); }</script>
+  </body></html>`);
+  janela.document.close();
+}
+
 // ===== CRONOGRAMA =====
 let cronTipoAtual = 'projeto';
 
@@ -2492,6 +2755,10 @@ window.mudarMes = mudarMes;
 window.renderCardMensal = renderCardMensal;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
+window.alternarViewCronograma = alternarViewCronograma;
+window.mudarMesCal = mudarMesCal;
+window.renderCalendario = renderCalendario;
+window.imprimirCalendario = imprimirCalendario;
 window.abrirEditarCronograma = abrirEditarCronograma;
 window.renderEntrega = renderEntrega;
 window.selecionarProjetoEntrega = selecionarProjetoEntrega;
