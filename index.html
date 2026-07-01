@@ -469,7 +469,25 @@
     <button id="toggle-cal" onclick="alternarViewCronograma('cal')" style="flex:1;padding:9px;border-radius:10px;border:1px solid var(--bge);font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;background:var(--bg);color:var(--txt);cursor:pointer">📅 Calendário</button>
   </div>
 
-  <!-- Controles do calendário (ocultos por padrão) -->
+  <!-- Controles da lista (filtro de datas) -->
+  <div id="lista-controles" style="margin-bottom:12px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <button onclick="filtroListaRapido('quinzenal')" id="fl-quinzenal" style="padding:6px 12px;border-radius:20px;border:none;font-family:DM Sans,sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--vd);color:var(--branco)">Quinzenal</button>
+      <button onclick="filtroListaRapido('mes')" id="fl-mes" style="padding:6px 12px;border-radius:20px;border:1px solid var(--bge);font-family:DM Sans,sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--txt)">Mês atual</button>
+      <button onclick="filtroListaRapido('proximo')" id="fl-proximo" style="padding:6px 12px;border-radius:20px;border:1px solid var(--bge);font-family:DM Sans,sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--txt)">Próximo mês</button>
+      <button onclick="filtroListaRapido('livre')" id="fl-livre" style="padding:6px 12px;border-radius:20px;border:1px solid var(--bge);font-family:DM Sans,sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--bg);color:var(--txt)">Período livre</button>
+    </div>
+    <div id="lista-filtro-datas" style="display:none;display:flex;gap:8px">
+      <div class="campo-grupo" style="flex:1;margin-bottom:0">
+        <label class="campo-lbl">De</label>
+        <input class="campo-inp" type="date" id="lista-filtro-ini" onchange="renderSemana()" style="padding:8px">
+      </div>
+      <div class="campo-grupo" style="flex:1;margin-bottom:0">
+        <label class="campo-lbl">Até</label>
+        <input class="campo-inp" type="date" id="lista-filtro-fim" onchange="renderSemana()" style="padding:8px">
+      </div>
+    </div>
+  </div>
   <div id="cal-controles" style="display:none;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <button onclick="mudarMesCal(-1)" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--vm);padding:0 8px">‹</button>
@@ -1524,44 +1542,87 @@ function registrarCampo() {
 }
 
 // ===== SEMANA =====
+let modoListaCronograma = 'quinzenal';
+
+function filtroListaRapido(modo) {
+  modoListaCronograma = modo;
+  // Destacar botão ativo
+  ['quinzenal','mes','proximo','livre'].forEach(m => {
+    const btn = document.getElementById(`fl-${m}`);
+    if (!btn) return;
+    if (m === modo) {
+      btn.style.background = 'var(--vd)'; btn.style.color = 'var(--branco)'; btn.style.border = 'none';
+    } else {
+      btn.style.background = 'var(--bg)'; btn.style.color = 'var(--txt)'; btn.style.border = '1px solid var(--bge)';
+    }
+  });
+  const campoDatas = document.getElementById('lista-filtro-datas');
+  if (campoDatas) campoDatas.style.display = modo === 'livre' ? 'flex' : 'none';
+  renderSemana();
+}
+
 function renderSemana() {
   const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const grid = document.getElementById('semana-grid');
   if (!grid) return;
   const hojeStr = hoje();
 
-  // Começar 7 dias corridos atrás
-  const inicio = new Date();
-  inicio.setDate(inicio.getDate() - 7);
+  const modo = modoListaCronograma || 'quinzenal';
+  let datasParaMostrar = [];
+
+  if (modo === 'quinzenal') {
+    // 7 dias passados + 15 dias úteis futuros (comportamento original)
+    const inicio = new Date();
+    inicio.setDate(inicio.getDate() - 7);
+    let diasUteis = 0, offset = 0;
+    while (diasUteis < 15) {
+      const d = new Date(inicio);
+      d.setDate(inicio.getDate() + offset);
+      offset++;
+      if (d.getDay() === 0) continue;
+      datasParaMostrar.push(dataLocal(d));
+      const ds = dataLocal(d);
+      if (ds >= hojeStr) diasUteis++;
+    }
+  } else if (modo === 'mes' || modo === 'proximo') {
+    const ref = new Date();
+    if (modo === 'proximo') ref.setMonth(ref.getMonth() + 1);
+    const ano = ref.getFullYear(), mes = ref.getMonth();
+    const dias = new Date(ano, mes + 1, 0).getDate();
+    for (let d = 1; d <= dias; d++) {
+      const dt = new Date(ano, mes, d);
+      if (dt.getDay() === 0) continue; // pula domingo
+      datasParaMostrar.push(`${ano}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+    }
+  } else if (modo === 'livre') {
+    const ini = document.getElementById('lista-filtro-ini')?.value;
+    const fim = document.getElementById('lista-filtro-fim')?.value;
+    if (!ini || !fim) { grid.innerHTML = '<div style="font-size:13px;color:var(--txts);padding:10px">Selecione as datas acima.</div>'; return; }
+    let cur = new Date(ini + 'T12:00:00');
+    const end = new Date(fim + 'T12:00:00');
+    while (cur <= end) {
+      if (cur.getDay() !== 0) datasParaMostrar.push(dataLocal(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
 
   let html = '';
-  let diasUteisFuturos = 0;
-  let offset = 0;
-  let separadorPassadoMostrado = false;
+  let separadorHojeMostrado = false;
 
-  // Percorre dias: 7 passados + 15 dias úteis a partir de hoje
-  while (diasUteisFuturos < 15) {
-    const d = new Date(inicio);
-    d.setDate(inicio.getDate() + offset);
-    offset++;
-    const dow = d.getDay();
-    if (dow === 0) continue; // pula domingo
-
-    const ds = dataLocal(d);
+  datasParaMostrar.forEach(ds => {
+    const dow = new Date(ds + 'T12:00:00').getDay();
     const isHj = ds === hojeStr;
     const isPassado = ds < hojeStr;
 
-    // Conta dias úteis só a partir de hoje (para limitar os 15 futuros)
-    if (!isPassado) diasUteisFuturos++;
-
-    // Separador visual entre passado e presente
-    if (!isPassado && !separadorPassadoMostrado && !isHj) {
-      // (caso hoje seja domingo e o primeiro dia útil seja segunda)
+    if (!separadorHojeMostrado && !isPassado && !isHj && modo === 'quinzenal') {
+      separadorHojeMostrado = true;
     }
 
-    // Itens do cronograma neste dia
     const itensCron = cronograma.filter(c => c.data === ds);
     const regsDia = registros.filter(r => r.data === ds);
+
+    // Não mostrar dias sem itens fora do modo quinzenal (evita tela poluída)
+    if (modo !== 'quinzenal' && itensCron.length === 0 && regsDia.length === 0) return;
 
     let items = '';
     itensCron.forEach(c => {
@@ -1583,25 +1644,30 @@ function renderSemana() {
     });
     if (!items) items = '<div style="font-size:12px;color:var(--bge);padding:4px 0">—</div>';
 
-    // Estilo do card: passado fica mais apagado
     const estiloCard = isPassado ? 'margin-bottom:10px;opacity:0.65' : 'margin-bottom:10px';
     const tagPassado = isPassado ? '<span style="font-size:9px;color:var(--txts);background:var(--bge);padding:1px 6px;border-radius:10px;margin-left:6px">PASSOU</span>' : '';
-
+    const [ano, mes, dia] = ds.split('-');
     html += `
     <div class="diacard ${isHj?'hoje':''}" style="${estiloCard}">
       <div class="diah">
-        <span class="dianome">${dias[dow]} ${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}${isHj?' · hoje':''}${tagPassado}</span>
+        <span class="dianome">${dias[dow]} ${dia}/${mes}${isHj?' · hoje':''}${tagPassado}</span>
         <button class="btn-gestor" onclick="abrirAddCronograma('${ds}')" style="font-size:18px;color:var(--vm)">＋</button>
       </div>
       ${items}
     </div>`;
-  }
+  });
+
+  if (!html) html = '<div style="font-size:13px;color:var(--txts);padding:10px">Nenhuma atividade no período selecionado.</div>';
   grid.innerHTML = html;
 
-  const fim = new Date(inicio);
-  fim.setDate(inicio.getDate() + offset - 1);
-  document.getElementById('semana-tit').textContent =
-    `${inicio.getDate()}/${inicio.getMonth()+1} — ${fim.getDate()}/${fim.getMonth()+1}`;
+  // Atualizar título
+  const titEl = document.getElementById('semana-tit');
+  if (titEl) {
+    if (modo === 'quinzenal') titEl.textContent = 'Cronograma quinzenal';
+    else if (modo === 'mes') titEl.textContent = `${MESES_PT[new Date().getMonth()]} ${new Date().getFullYear()}`;
+    else if (modo === 'proximo') { const p = new Date(); p.setMonth(p.getMonth()+1); titEl.textContent = `${MESES_PT[p.getMonth()]} ${p.getFullYear()}`; }
+    else titEl.textContent = 'Período personalizado';
+  }
 }
 
 // ===== CALENDÁRIO VISUAL DO CRONOGRAMA =====
@@ -2758,6 +2824,7 @@ window.renderCardMensal = renderCardMensal;
 window.renderRegistros = renderRegistros;
 window.abrirAddCronograma = abrirAddCronograma;
 window.alternarViewCronograma = alternarViewCronograma;
+window.filtroListaRapido = filtroListaRapido;
 window.mudarMesCal = mudarMesCal;
 window.renderCalendario = renderCalendario;
 window.imprimirCalendario = imprimirCalendario;
