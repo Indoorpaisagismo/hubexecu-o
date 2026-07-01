@@ -492,9 +492,9 @@
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2C5F2E;display:inline-block"></span>Execução</span>
       <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#1565C0;display:inline-block"></span>Manutenção</span>
-      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Irrigação</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#0097A7;display:inline-block"></span>Irrigação</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Lago</span>
       <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#A67C52;display:inline-block"></span>Avulso</span>
-      <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2E7D32;display:inline-block"></span>Outros</span>
     </div>
     <button onclick="imprimirCalendario()" style="width:100%;padding:10px;background:var(--vd);color:var(--branco);border:none;border-radius:10px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer">🖨️ Imprimir calendário</button>
   </div>
@@ -1616,7 +1616,8 @@ function corTipoProjeto(proj) {
   const tipo = (proj.tipo || '').toLowerCase();
   if (tipo.includes('exec')) return '#2C5F2E';
   if (tipo.includes('manu')) return '#1565C0';
-  if (tipo.includes('irrig') || tipo.includes('lago')) return '#6A0DAD';
+  if (tipo.includes('irrig')) return '#0097A7';
+  if (tipo.includes('lago')) return '#6A0DAD';
   return '#2E7D32';
 }
 
@@ -1722,7 +1723,7 @@ function renderCalendario() {
       const cor = c.tipo === 'manual' ? '#A67C52' : corTipoProjeto(proj);
       const texto = c.tipo === 'manual' ? c.descricao : (proj ? proj.nome : '—') + (c.tarefa ? ` · ${c.tarefa}` : '');
       const riscado = c.executado ? 'text-decoration:line-through;opacity:0.6' : '';
-      html += `<div style="background:${cor};color:#fff;border-radius:3px;padding:2px 4px;font-size:9px;line-height:1.3;margin-bottom:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${riscado}" title="${texto}">${texto}</div>`;
+      html += `<div style="background:${cor};color:#fff;border-radius:3px;padding:2px 4px;font-size:9px;line-height:1.3;margin-bottom:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;${riscado}" title="${texto}">${texto}</div>`;
     });
 
     html += `</div>`;
@@ -1788,7 +1789,7 @@ function imprimirCalendario() {
       const cor = c.tipo === 'manual' ? '#A67C52' : corTipoProjeto(proj);
       const texto = c.tipo === 'manual' ? c.descricao : (proj ? proj.nome : '—') + (c.tarefa ? ` · ${c.tarefa}` : '');
       const riscado = c.executado ? 'text-decoration:line-through;opacity:0.5' : '';
-      grid += `<div style="background:${cor};color:#fff;border-radius:4px;padding:3px 5px;font-size:9px;line-height:1.3;margin-bottom:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${riscado}">${texto}</div>`;
+      grid += `<div style="background:${cor};color:#fff;border-radius:4px;padding:3px 5px;font-size:9px;line-height:1.3;margin-bottom:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;${riscado}">${texto}</div>`;
     });
     grid += `</div>`;
   }
@@ -1803,7 +1804,8 @@ function imprimirCalendario() {
   const legenda = `<div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
     <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#2C5F2E;display:inline-block"></span>Execução</span>
     <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#1565C0;display:inline-block"></span>Manutenção</span>
-    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Irrigação</span>
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#0097A7;display:inline-block"></span>Irrigação</span>
+    <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#6A0DAD;display:inline-block"></span>Lago</span>
     <span style="font-size:10px;display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:#A67C52;display:inline-block"></span>Avulso</span>
   </div>`;
 
