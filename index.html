@@ -758,7 +758,18 @@ function toast(m) {
   t.textContent = m; t.classList.add('v');
   setTimeout(() => t.classList.remove('v'), 2500);
 }
-function hoje() { return new Date().toISOString().split('T')[0]; }
+function hoje() {
+  const d = new Date();
+  return dataLocal(d);
+}
+
+// Converte Date para string YYYY-MM-DD no fuso local (evita bug UTC-3)
+function dataLocal(d) {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
 function fmtData(s) { if (!s) return '—'; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
 function fmtR(v) { return 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function diasR(fim) { if (!fim) return null; return Math.ceil((new Date(fim)-new Date())/(86400000)); }
@@ -828,7 +839,7 @@ function calcularPendencias() {
 
   while (d < limite) {
     const dow = d.getDay();
-    const ds = d.toISOString().split('T')[0];
+    const ds = dataLocal(d);
     // Só seg-sex (1 a 5)
     if (dow >= 1 && dow <= 5) {
       if (!datasComRegistro.has(ds) && !registrosDispensados.has(ds)) diasSemRegistro.push(ds);
@@ -1430,7 +1441,7 @@ function registrarCampo() {
     const nomeProj = projCampo.nome;
     const dtManutencao = new Date();
     dtManutencao.setDate(dtManutencao.getDate() + 30);
-    const dtISO = dtManutencao.toISOString().split('T')[0];
+    const dtISO = dataLocal(dtManutencao);
     agendarManutencao(nomeProj, dtISO);
   }
 
@@ -1476,7 +1487,7 @@ function renderSemana() {
     const dow = d.getDay();
     if (dow === 0) continue; // pula domingo
 
-    const ds = d.toISOString().split('T')[0];
+    const ds = dataLocal(d);
     const isHj = ds === hojeStr;
     const isPassado = ds < hojeStr;
 
