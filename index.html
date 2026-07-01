@@ -2392,9 +2392,15 @@ function agendarEventoCalendar(titulo, dataISO, agendas) {
       const evento = {
         summary: titulo,
         description: 'Criado pelo Hub de Execução INDOOR.',
-        start: { date: dataISO },
-        end:   { date: dataISO },
-        reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 60 }] }
+        start: { dateTime: `${dataISO}T08:00:00`, timeZone: 'America/Sao_Paulo' },
+        end:   { dateTime: `${dataISO}T08:30:00`, timeZone: 'America/Sao_Paulo' },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 0 },
+            { method: 'email', minutes: 0 }
+          ]
+        }
       };
       try {
         // Criar evento em todas as agendas
