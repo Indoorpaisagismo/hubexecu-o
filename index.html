@@ -618,6 +618,28 @@
   </div>
 </div>
 
+<!-- MODAL ENVIAR PARA CALENDAR -->
+<div class="modal-ov" id="m-calendar-cron">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-calendar-cron')">×</button>Enviar para Calendar</div>
+    <input type="hidden" id="cal-cron-id">
+    <div style="font-size:13px;color:var(--txts);margin-bottom:16px" id="cal-cron-desc"></div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">ENVIAR PARA</label>
+      <div style="font-size:11px;color:var(--txts);margin-bottom:8px">🌿 INDOOR sempre incluída · adicione outro e-mail se precisar</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button type="button" id="cal-btn-indoor" style="flex:1;padding:10px;background:var(--bge);color:var(--txts);border:1px solid var(--bge);border-radius:10px;font-family:DM Sans,sans-serif;font-size:13px;cursor:default">✓ contato@indoorplantas</button>
+        <button type="button" id="cal-btn-outro" style="flex:1;padding:10px;background:var(--bg);color:var(--txt);border:1px solid var(--bge);border-radius:10px;font-family:DM Sans,sans-serif;font-size:13px;cursor:pointer" onclick="selecionarAgenda('outro')">+ Outro e-mail</button>
+      </div>
+      <div id="cal-outro-campo" style="display:none">
+        <label class="campo-lbl">E-MAIL ADICIONAL</label>
+        <input class="campo-inp" type="email" id="cal-email-outro" placeholder="email@exemplo.com">
+      </div>
+    </div>
+    <button class="btn-salvar" onclick="confirmarEnvioCalendar()">📅 Criar evento</button>
+  </div>
+</div>
+
 <!-- MODAL CRONOGRAMA -->
 <div class="modal-ov" id="m-cronograma">
   <div class="modal">
@@ -1512,6 +1534,7 @@ function renderSemana() {
       items += `<div class="cron-item" style="border-left:3px solid ${cor};display:flex;justify-content:space-between;align-items:center;gap:6px;background:${c.executado?'#E8F4E8':'var(--bg)'}">
         <input type="checkbox" ${c.executado?'checked':''} onchange="marcarExecutadoCronograma('${c.id}',this.checked)" style="flex-shrink:0;width:16px;height:16px;cursor:pointer">
         <span style="flex:1;cursor:pointer;${estiloTexto}" onclick="abrirEditarCronograma('${c.id}')">${texto}</span>
+        <span style="cursor:pointer;color:var(--vm);font-size:13px" onclick="abrirEnvioCalendarCron('${c.id}')" title="Enviar para Calendar">📅</span>
         <span style="cursor:pointer;color:var(--txts);font-size:13px" onclick="abrirEditarCronograma('${c.id}')">✏️</span>
         <span style="cursor:pointer;color:var(--erro);font-size:13px" onclick="apagarCronograma('${c.id}')">✕</span>
       </div>`;
@@ -2299,6 +2322,96 @@ function concluirEntrega() {
   }
 }
 
+// ===== ENVIAR ITEM DO CRONOGRAMA PARA CALENDAR =====
+let calAgendaSelecionada = 'indoor';
+
+function abrirEnvioCalendarCron(id) {
+  const c = cronograma.find(x => x.id === id);
+  if (!c) return;
+  const proj = c.tipo === 'projeto' ? (projetos.find(p => String(p.id) === String(c.projetoId)) || {}).nome : '';
+  const texto = c.tipo === 'manual' ? c.descricao : `${proj || ''}${c.tarefa ? ' — ' + c.tarefa : ''}`;
+  const [ano, mes, dia] = c.data.split('-');
+  document.getElementById('cal-cron-id').value = id;
+  document.getElementById('cal-cron-desc').textContent = `📅 ${texto} · ${dia}/${mes}/${ano}`;
+  document.getElementById('cal-email-outro').value = '';
+  selecionarAgenda('indoor');
+  abrirModal('m-calendar-cron');
+}
+
+function selecionarAgenda(tipo) {
+  calAgendaSelecionada = tipo;
+  const btnIndoor = document.getElementById('cal-btn-indoor');
+  const btnOutro = document.getElementById('cal-btn-outro');
+  const campoOutro = document.getElementById('cal-outro-campo');
+  if (tipo === 'indoor') {
+    btnIndoor.style.background = 'var(--vd)'; btnIndoor.style.color = 'var(--branco)'; btnIndoor.style.border = 'none';
+    btnOutro.style.background = 'var(--bg)'; btnOutro.style.color = 'var(--txt)'; btnOutro.style.border = '1px solid var(--bge)';
+    campoOutro.style.display = 'none';
+  } else {
+    btnOutro.style.background = 'var(--vd)'; btnOutro.style.color = 'var(--branco)'; btnOutro.style.border = 'none';
+    btnIndoor.style.background = 'var(--bg)'; btnIndoor.style.color = 'var(--txt)'; btnIndoor.style.border = '1px solid var(--bge)';
+    campoOutro.style.display = 'block';
+    setTimeout(() => document.getElementById('cal-email-outro').focus(), 100);
+  }
+}
+
+function confirmarEnvioCalendar() {
+  const id = document.getElementById('cal-cron-id').value;
+  const c = cronograma.find(x => x.id === id);
+  if (!c) return;
+
+  const agendas = [GCAL_TARGET]; // sempre envia para INDOOR
+  if (calAgendaSelecionada === 'outro') {
+    const emailOutro = document.getElementById('cal-email-outro').value.trim();
+    if (!emailOutro || !emailOutro.includes('@')) { toast('Informe um e-mail válido'); return; }
+    agendas.push(emailOutro); // envia para os dois
+  }
+
+  const proj = c.tipo === 'projeto' ? (projetos.find(p => String(p.id) === String(c.projetoId)) || {}).nome : '';
+  const titulo = c.tipo === 'manual' ? c.descricao : `🌿 ${proj}${c.tarefa ? ' — ' + c.tarefa : ''}`;
+
+  fecharModal('m-calendar-cron');
+  agendarEventoCalendar(titulo, c.data, agendas);
+}
+
+function agendarEventoCalendar(titulo, dataISO, agendas) {
+  if (!Array.isArray(agendas)) agendas = [agendas];
+  if (!window.google || !window.google.accounts) {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = () => agendarEventoCalendar(titulo, dataISO, agendas);
+    document.head.appendChild(script);
+    return;
+  }
+  const client = window.google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: GCAL_SCOPE,
+    callback: async (resp) => {
+      if (resp.error) { toast('Erro de autorização'); return; }
+      const [a, m, d] = dataISO.split('-');
+      const evento = {
+        summary: titulo,
+        description: 'Criado pelo Hub de Execução INDOOR.',
+        start: { date: dataISO },
+        end:   { date: dataISO },
+        reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 60 }] }
+      };
+      try {
+        // Criar evento em todas as agendas
+        await Promise.all(agendas.map(agenda =>
+          fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(agenda)}/events`,
+            { method: 'POST', headers: { 'Authorization': `Bearer ${resp.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(evento) }
+          )
+        ));
+        const destinos = agendas.length > 1 ? `${agendas.length} agendas` : agendas[0];
+        toast(`📅 Evento criado para ${d}/${m}/${a} → ${destinos} ✓`);
+      } catch(e) { console.warn(e); toast('Erro ao criar evento'); }
+    }
+  });
+  client.requestAccessToken();
+}
+
 // ===== GOOGLE CALENDAR API =====
 const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -2383,6 +2496,9 @@ window.irParaEntrega = irParaEntrega;
 window.cronSelecionarTipo = cronSelecionarTipo;
 window.salvarCronograma = salvarCronograma;
 window.apagarCronograma = apagarCronograma;
+window.abrirEnvioCalendarCron = abrirEnvioCalendarCron;
+window.selecionarAgenda = selecionarAgenda;
+window.confirmarEnvioCalendar = confirmarEnvioCalendar;
 window.marcarExecutadoCronograma = marcarExecutadoCronograma;
 window.confirmarProjetoMeta = confirmarProjetoMeta;
 window.salvarMeta = salvarMeta;
