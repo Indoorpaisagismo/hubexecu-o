@@ -590,6 +590,7 @@
   <div class="modal">
     <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-edit-meta')">×</button>Editar meta</div>
     <input type="hidden" id="edit-meta-id">
+    <div class="campo-grupo"><label class="campo-lbl">Data</label><input class="campo-inp" type="date" id="edit-meta-data"></div>
     <div class="campo-grupo"><label class="campo-lbl">Projeto</label><select class="campo-sel" id="edit-meta-projeto"></select></div>
     <div class="campo-grupo">
       <label class="campo-lbl">Equipe — quantidade por função</label>
@@ -2090,6 +2091,7 @@ function abrirEditarMeta(id) {
   const m = metas.find(x => x.id === id);
   if (!m) return;
   document.getElementById('edit-meta-id').value = id;
+  document.getElementById('edit-meta-data').value = m.data || hoje();
 
   // Preencher select projetos
   const sel = document.getElementById('edit-meta-projeto');
@@ -2127,6 +2129,7 @@ function salvarEdicaoMeta() {
     const qtd = parseInt(inp.value) || 0;
     if (qtd > 0) equipe.push(`${qtd}x ${inp.dataset.funcao}`);
   });
+  metas[idx].data = document.getElementById('edit-meta-data').value || metas[idx].data;
   metas[idx].projetoId = document.getElementById('edit-meta-projeto').value;
   metas[idx].equipe = equipe;
   metas[idx].tarefas = document.getElementById('edit-meta-tarefas').value.trim().split('\n').filter(t => t.trim());
