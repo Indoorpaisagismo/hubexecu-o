@@ -556,6 +556,55 @@
   </div>
 </div>
 
+<!-- MODAL DADOS TÉCNICOS -->
+<div class="modal-ov" id="m-dados-tec">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-tit"><button class="mfechar" onclick="fecharModal('m-dados-tec')">×</button>📐 Dados Técnicos</div>
+    <input type="hidden" id="dt-proj-id">
+    <div id="dt-proj-nome" style="font-size:13px;font-weight:600;color:var(--vd);margin-bottom:16px"></div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--txts);letter-spacing:1px;margin-bottom:8px">ÁREAS</div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Canteiros (m²)</label><input class="campo-inp" type="number" id="dt-area-canteiros" min="0" step="0.01"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Gramados (m²)</label><input class="campo-inp" type="number" id="dt-area-gramados" min="0" step="0.01"></div>
+    </div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Seixo / Caçao (m²)</label><input class="campo-inp" type="number" id="dt-area-seixo" min="0" step="0.01"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Área Total (m²)</label><input class="campo-inp" type="number" id="dt-area-total" min="0" step="0.01" style="background:var(--bge)" readonly></div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--txts);letter-spacing:1px;margin:12px 0 8px">PLANTAS</div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Grande Porte (un)</label><input class="campo-inp" type="number" id="dt-grande-porte" min="0" oninput="calcTotalMudas()"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Médio Porte (un)</label><input class="campo-inp" type="number" id="dt-medio-porte" min="0" oninput="calcTotalMudas()"></div>
+    </div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Herbáceas (un)</label><input class="campo-inp" type="number" id="dt-herbaceas" min="0" oninput="calcTotalMudas()"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Forrações (un)</label><input class="campo-inp" type="number" id="dt-forracoes" min="0" oninput="calcTotalMudas()"></div>
+    </div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Vasos (un)</label><input class="campo-inp" type="number" id="dt-vasos" min="0" oninput="calcTotalMudas()"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Módulos Vertical (un)</label><input class="campo-inp" type="number" id="dt-modulos" min="0" oninput="calcTotalMudas()"></div>
+    </div>
+    <div class="campo-grupo">
+      <label class="campo-lbl">Total de mudas (un)</label>
+      <input class="campo-inp" type="number" id="dt-total-mudas" readonly style="background:var(--bge);font-weight:600">
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:var(--txts);letter-spacing:1px;margin:12px 0 8px">IRRIGAÇÃO</div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Valetas IRG (m)</label><input class="campo-inp" type="number" id="dt-valetas" min="0"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Tubos PVC IRG (m)</label><input class="campo-inp" type="number" id="dt-tubos-pvc" min="0"></div>
+    </div>
+    <div class="campo-row">
+      <div class="campo-grupo"><label class="campo-lbl">Tubo Gotejador (m)</label><input class="campo-inp" type="number" id="dt-gotejador" min="0"></div>
+      <div class="campo-grupo"><label class="campo-lbl">Aspersores IRG (un)</label><input class="campo-inp" type="number" id="dt-aspersores" min="0"></div>
+    </div>
+
+    <button class="btn-salvar" onclick="salvarDadosTecnicos()">💾 Salvar dados técnicos</button>
+  </div>
+</div>
+
 <!-- MODAL EDITAR PROJETO -->
 <div class="modal-ov" id="m-edit-proj">
   <div class="modal">
@@ -1156,6 +1205,7 @@ function renderProjetos() {
       </div>
       <div class="acoes">
         <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
+        <button class="btn-acao" onclick="abrirDadosTecnicos('${p.id}')">📐 Dados técnicos</button>
         <button class="btn-acao" onclick="confirmarPINProjeto('${p.id}')">✏️ Editar</button>
         <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');fbDeletar('checklists','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');checklists=checklists.filter(c=>String(c.projetoId)!=='${p.id}');salvar();renderProjetos();renderDash();toast('Arquivado');}">Arquivar</button>
       </div>
@@ -2752,6 +2802,59 @@ function agendarEventoCalendar(titulo, dataISO, agendas) {
   client.requestAccessToken();
 }
 
+// ===== DADOS TÉCNICOS DO PROJETO =====
+const DT_CAMPOS = [
+  'area-canteiros','area-gramados','area-seixo',
+  'grande-porte','medio-porte','herbaceas','forracoes','vasos','modulos',
+  'valetas','tubos-pvc','gotejador','aspersores'
+];
+
+function calcTotalMudas() {
+  const total = ['dt-grande-porte','dt-medio-porte','dt-herbaceas','dt-forracoes','dt-vasos','dt-modulos']
+    .reduce((s,id) => s + (parseFloat(document.getElementById(id)?.value)||0), 0);
+  const el = document.getElementById('dt-total-mudas');
+  if (el) el.value = total || '';
+
+  // Área total
+  const totalArea = ['dt-area-canteiros','dt-area-gramados','dt-area-seixo']
+    .reduce((s,id) => s + (parseFloat(document.getElementById(id)?.value)||0), 0);
+  const elArea = document.getElementById('dt-area-total');
+  if (elArea) elArea.value = totalArea || '';
+}
+
+function abrirDadosTecnicos(id) {
+  const p = projetos.find(x => String(x.id) === String(id));
+  if (!p) return;
+  document.getElementById('dt-proj-id').value = id;
+  document.getElementById('dt-proj-nome').textContent = p.nome;
+  const dt = p.dadosTecnicos || {};
+  DT_CAMPOS.forEach(c => {
+    const el = document.getElementById(`dt-${c}`);
+    if (el) el.value = dt[c.replace(/-/g,'_')] || '';
+  });
+  calcTotalMudas();
+  abrirModal('m-dados-tec');
+}
+
+function salvarDadosTecnicos() {
+  const id = document.getElementById('dt-proj-id').value;
+  const idx = projetos.findIndex(x => String(x.id) === String(id));
+  if (idx === -1) return;
+  const dt = {};
+  DT_CAMPOS.forEach(c => {
+    const val = parseFloat(document.getElementById(`dt-${c}`)?.value) || 0;
+    if (val > 0) dt[c.replace(/-/g,'_')] = val;
+  });
+  // Calcular totais automáticos
+  dt.area_total = (dt.area_canteiros||0) + (dt.area_gramados||0) + (dt.area_seixo||0);
+  dt.total_mudas = (dt.grande_porte||0) + (dt.medio_porte||0) + (dt.herbaceas||0) + (dt.forracoes||0) + (dt.vasos||0) + (dt.modulos||0);
+  projetos[idx].dadosTecnicos = dt;
+  fbSalvarProjeto(projetos[idx]);
+  salvar();
+  fecharModal('m-dados-tec');
+  toast('Dados técnicos salvos ✓');
+}
+
 // ===== GOOGLE CALENDAR API =====
 const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -2861,6 +2964,9 @@ window.abrirModalEditReg = abrirModalEditReg;
 window.salvarEdicaoRegistro = salvarEdicaoRegistro;
 window.apagarRegistro = apagarRegistro;
 window.executarApagar = executarApagar;
+window.abrirDadosTecnicos = abrirDadosTecnicos;
+window.salvarDadosTecnicos = salvarDadosTecnicos;
+window.calcTotalMudas = calcTotalMudas;
 window.confirmarPINProjeto = confirmarPINProjeto;
 window.abrirModalEditProj = abrirModalEditProj;
 window.salvarEdicaoProjeto = salvarEdicaoProjeto;
