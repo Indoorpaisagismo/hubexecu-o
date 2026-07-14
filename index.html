@@ -1279,6 +1279,15 @@ function verDetalhes(id) {
     </div>
     ${p.tarefas&&p.tarefas.length?`<div style="margin-bottom:16px"><div class="stit">Escopo</div>${p.tarefas.map(t=>`<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--bg)">· ${t}</div>`).join('')}</div>`:''}
     ${p.obs?`<div style="margin-bottom:16px;background:var(--bg);padding:12px;border-radius:10px;font-size:13px;color:var(--txts)">${p.obs}</div>`:''}
+    ${p.progresso >= 100 ? `
+    <div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;color:#2E7D32;margin-bottom:10px">🗓 Manutenção de entrega</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="det-data-manutencao" class="campo-inp" style="flex:1;padding:8px;font-size:13px" value="${(() => { const d = new Date(p.dataConclusao ? p.dataConclusao + 'T12:00:00' : Date.now()); d.setDate(d.getDate()+30); return dataLocal(d); })()}">
+        <button onclick="agendarManutencaoManual('${p.id}')" style="background:#2E7D32;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:DM Sans,sans-serif;font-size:13px;cursor:pointer;white-space:nowrap">📅 Agendar</button>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:6px">Data sugerida: 30 dias após conclusão</div>
+    </div>` : ''}
     <div class="stit">Histórico de campo</div>
     ${histHtml}
   `;
@@ -2855,6 +2864,15 @@ function salvarDadosTecnicos() {
   toast('Dados técnicos salvos ✓');
 }
 
+function agendarManutencaoManual(projetoId) {
+  const p = projetos.find(x => x.id === projetoId);
+  if (!p) return;
+  const dataInput = document.getElementById('det-data-manutencao');
+  const dataISO = dataInput ? dataInput.value : null;
+  if (!dataISO) { toast('Selecione uma data'); return; }
+  agendarManutencao(p.nome, dataISO);
+}
+
 // ===== GOOGLE CALENDAR API =====
 const GCAL_CLIENT_ID = '1042863056704-r8jb5uasrt3piqkh07fre2uqkm6eps71.apps.googleusercontent.com';
 const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -2971,6 +2989,7 @@ window.confirmarPINProjeto = confirmarPINProjeto;
 window.abrirModalEditProj = abrirModalEditProj;
 window.salvarEdicaoProjeto = salvarEdicaoProjeto;
 window.fbDeletar = fbDeletar;
+window.agendarManutencaoManual = agendarManutencaoManual;
 window.agendarManutencao = agendarManutencao;
 
 // ===== INIT =====
