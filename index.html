@@ -652,7 +652,7 @@
     </div>
     <div class="campo-grupo"><label class="campo-lbl">Tarefas (uma por linha)</label><textarea class="campo-ta" id="edit-meta-tarefas"></textarea></div>
     <div class="campo-grupo"><label class="campo-lbl">Observações</label><input class="campo-inp" type="text" id="edit-meta-obs"></div>
-    <button class="btn-salvar" onclick="confirmarPIN('salvarEdicaoMeta')">Salvar alterações</button>
+    <button class="btn-salvar" onclick="salvarEdicaoMeta()">Salvar alterações</button>
   </div>
 </div>
 
@@ -709,7 +709,7 @@
     <div class="campo-grupo"><label class="campo-lbl">Gastos extras (R$)</label><input class="campo-inp" type="number" id="edit-reg-extras" step="0.01" min="0"></div>
     <div class="campo-grupo"><label class="campo-lbl">Descrição do gasto extra</label><input class="campo-inp" type="text" id="edit-reg-extras-desc"></div>
     <div class="campo-grupo"><label class="campo-lbl">Progresso (%)</label><input class="campo-inp" type="number" id="edit-reg-progresso" min="0" max="100"></div>
-    <button class="btn-salvar" onclick="confirmarPIN('salvarEdicaoRegistro')">Salvar alterações</button>
+    <button class="btn-salvar" onclick="salvarEdicaoRegistro()">Salvar alterações</button>
   </div>
 </div>
 
@@ -2870,7 +2870,25 @@ function agendarManutencaoManual(projetoId) {
   const dataInput = document.getElementById('det-data-manutencao');
   const dataISO = dataInput ? dataInput.value : null;
   if (!dataISO) { toast('Selecione uma data'); return; }
+
+  // 1 — Criar item no cronograma do Hub
+  const itemCron = {
+    id: Date.now().toString(),
+    tipo: 'projeto',
+    projetoId: p.id,
+    tarefa: 'Manutenção de entrega',
+    data: dataISO,
+    executado: false
+  };
+  cronograma.push(itemCron);
+  fbSalvarCronograma(itemCron);
+
+  // 2 — Agendar no Google Calendar
   agendarManutencao(p.nome, dataISO);
+
+  fecharModal('m-detalhe');
+  mudarAba('semana', document.querySelector('.nb[onclick*="semana"]'));
+  toast(`✓ Manutenção criada no cronograma para ${dataISO.split('-').reverse().join('/')}`);
 }
 
 // ===== GOOGLE CALENDAR API =====
