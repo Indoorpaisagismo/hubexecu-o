@@ -1181,11 +1181,14 @@ function renderDash() {
 // ===== PROJETOS =====
 function renderProjetos() {
   const lista = document.getElementById('p-lista');
-  if (projetos.length === 0) {
+  const ativos = projetos.filter(p => !p.arquivado);
+  const arquivados = projetos.filter(p => p.arquivado);
+
+  if (ativos.length === 0 && arquivados.length === 0) {
     lista.innerHTML = '<div class="vazio"><div class="vi">🌿</div><div>Adicione seu primeiro projeto</div></div>';
     return;
   }
-  lista.innerHTML = projetos.map(p => {
+  lista.innerHTML = ativos.map(p => {
     const st = statusP(p);
     const acum = custoAcumulado(p.id);
     const prev = parseFloat(p.custoPrevisto) || 0;
@@ -1207,10 +1210,69 @@ function renderProjetos() {
         <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
         <button class="btn-acao" onclick="abrirDadosTecnicos('${p.id}')">📐 Dados técnicos</button>
         <button class="btn-acao" onclick="confirmarPINProjeto('${p.id}')">✏️ Editar</button>
-        <button class="btn-acao p" onclick="if(confirm('Arquivar?')){fbDeletar('projetos','${p.id}');fbDeletar('checklists','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');checklists=checklists.filter(c=>String(c.projetoId)!=='${p.id}');salvar();renderProjetos();renderDash();toast('Arquivado');}">Arquivar</button>
+        <button class="btn-acao p" onclick="confirmarPIN('arquivarProjeto_${p.id}')">Arquivar</button>
       </div>
     </div>`;
   }).join('');
+
+  // Seção de arquivados
+  if (arquivados.length > 0) {
+    lista.innerHTML += `
+    <div style="margin-top:24px">
+      <div onclick="toggleArquivados()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:10px 14px;background:var(--bge);border-radius:12px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--txts)">📦 Projetos arquivados (${arquivados.length})</span>
+        <span id="icon-arquivados" style="color:var(--txts);font-size:16px">›</span>
+      </div>
+      <div id="lista-arquivados" style="display:none">
+        ${arquivados.map(p => {
+          const st = statusP(p);
+          const acum = custoAcumulado(p.id);
+          const prev = parseFloat(p.custoPrevisto) || 0;
+          const sobreCusto = prev > 0 && acum > prev;
+          return `
+          <div class="pcard" style="opacity:0.85;border:1px solid var(--bge)">
+            <div class="pch">
+              <div class="pnome">${p.nome}</div>
+              <span class="ptag" style="background:var(--bge);color:var(--txts)">ARQUIVADO</span>
+            </div>
+            <div class="plbl"><span>${p.endereco||'—'}</span><span>${p.progresso||0}%</span></div>
+            <div class="ptrilha"><div class="pbarra ${st}" style="width:${p.progresso||0}%"></div></div>
+            <div class="custo-grid" style="margin-top:10px">
+              <div class="custo-item"><div class="custo-lbl">Previsto</div><div class="custo-val">${prev>0?fmtR(prev):'—'}</div></div>
+              <div class="custo-item ${sobreCusto?'alerta':''}"><div class="custo-lbl">Realizado</div><div class="custo-val">${fmtR(acum)}</div></div>
+              ${p.valorContrato ? `<div class="custo-item destaque" style="grid-column:1/-1"><div class="custo-lbl">Valor do contrato</div><div class="custo-val">${fmtR(parseFloat(p.valorContrato))}</div></div>` : ''}
+            </div>
+            <div class="acoes">
+              <button class="btn-acao" onclick="verDetalhes('${p.id}')">Ver detalhes</button>
+              <button class="btn-acao" onclick="abrirDadosTecnicos('${p.id}')">📐 Dados técnicos</button>
+              <button class="btn-acao" onclick="reativarProjeto('${p.id}')">↩️ Reativar</button>
+              <button class="btn-acao p" onclick="if(confirm('Apagar permanentemente?')){fbDeletar('projetos','${p.id}');fbDeletar('checklists','${p.id}');projetos=projetos.filter(x=>x.id!=='${p.id}');checklists=checklists.filter(c=>String(c.projetoId)!=='${p.id}');salvar();renderProjetos();renderDash();toast('Apagado');}">🗑 Apagar</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+}
+
+function toggleArquivados() {
+  const lista = document.getElementById('lista-arquivados');
+  const icon = document.getElementById('icon-arquivados');
+  if (!lista) return;
+  const aberto = lista.style.display !== 'none';
+  lista.style.display = aberto ? 'none' : 'block';
+  icon.textContent = aberto ? '›' : '⌄';
+}
+
+function reativarProjeto(id) {
+  const idx = projetos.findIndex(p => String(p.id) === String(id));
+  if (idx === -1) return;
+  projetos[idx].arquivado = false;
+  fbSalvarProjeto(projetos[idx]);
+  salvar();
+  renderProjetos();
+  renderDash();
+  toast('Projeto reativado ✓');
 }
 
 function abrirModal(id) { document.getElementById(id).classList.add('aberto'); }
@@ -2091,7 +2153,26 @@ function validarPIN() {
     return;
   }
   fecharModal('m-pin');
-  if (acaoPendente) { window[acaoPendente](); acaoPendente = null; }
+  if (!acaoPendente) return;
+  // Tratar ações com ID dinâmico (ex: 'arquivarProjeto_123')
+  if (acaoPendente.startsWith('arquivarProjeto_')) {
+    const id = acaoPendente.replace('arquivarProjeto_', '');
+    acaoPendente = null;
+    arquivarProjeto(id);
+    return;
+  }
+  window[acaoPendente](); acaoPendente = null;
+}
+
+function arquivarProjeto(id) {
+  const idx = projetos.findIndex(p => String(p.id) === String(id));
+  if (idx === -1) return;
+  projetos[idx].arquivado = true;
+  fbSalvarProjeto(projetos[idx]);
+  salvar();
+  renderProjetos();
+  renderDash();
+  toast('Projeto arquivado');
 }
 
 // ===== EDITAR PROJETO =====
@@ -3003,6 +3084,9 @@ window.executarApagar = executarApagar;
 window.abrirDadosTecnicos = abrirDadosTecnicos;
 window.salvarDadosTecnicos = salvarDadosTecnicos;
 window.calcTotalMudas = calcTotalMudas;
+window.toggleArquivados = toggleArquivados;
+window.reativarProjeto = reativarProjeto;
+window.arquivarProjeto = arquivarProjeto;
 window.confirmarPINProjeto = confirmarPINProjeto;
 window.abrirModalEditProj = abrirModalEditProj;
 window.salvarEdicaoProjeto = salvarEdicaoProjeto;
