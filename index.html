@@ -943,7 +943,7 @@ let dispensaPendente = null;
 
 function calcularPendencias() {
   // Encontrar a data de início mais antiga entre projetos ativos
-  const projsAtivos = projetos.filter(p => p.progresso < 100 && p.inicio);
+  const projsAtivos = projetos.filter(p => !p.arquivado && p.inicio);
   if (projsAtivos.length === 0) return { diasSemRegistro: [], diasSemMeta: [] };
 
   const inicios = projsAtivos.map(p => p.inicio).filter(Boolean).sort();
@@ -1053,9 +1053,9 @@ function renderDash() {
   renderPendencias();
   renderChecklistPendencias();
   renderCardMensal();
-  const ativos = projetos.filter(p => p.progresso < 100);
-  const atrasados = projetos.filter(p => p.progresso < 100 && diasR(p.fim) !== null && diasR(p.fim) < 0);
-  const concluidos = projetos.filter(p => p.progresso >= 100);
+  const ativos = projetos.filter(p => !p.arquivado);
+  const atrasados = projetos.filter(p => !p.arquivado && diasR(p.fim) !== null && diasR(p.fim) < 0);
+  const concluidos = projetos.filter(p => !p.arquivado && p.progresso >= 100);
 
   document.getElementById('d-total').textContent = ativos.length;
   document.getElementById('d-atrasados').textContent = atrasados.length;
@@ -1364,7 +1364,7 @@ function renderMeta() {
   // Preencher select de projetos
   const sel = document.getElementById('meta-projeto');
   sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
-  projetos.filter(p => p.progresso < 100).forEach(p => {
+  projetos.filter(p => !p.arquivado).forEach(p => {
     const o = document.createElement('option');
     o.value = p.id; o.textContent = p.nome;
     sel.appendChild(o);
@@ -1459,14 +1459,14 @@ function renderCampo() {
 
   const sel = document.getElementById('c-select-proj');
   if (!sel) return;
-  const valorAtual = sel.value; // preservar seleção atual
+  const valorAtual = sel.value;
   sel.innerHTML = '<option value="">— Selecionar projeto —</option>';
-  projetos.filter(p => p.progresso < 100).forEach(p => {
+  projetos.filter(p => !p.arquivado).forEach(p => {
     const o = document.createElement('option');
-    o.value = String(p.id); o.textContent = p.nome;
+    o.value = String(p.id);
+    o.textContent = p.progresso >= 100 ? `✓ ${p.nome}` : p.nome;
     sel.appendChild(o);
   });
-  // Restaurar seleção se ainda existir
   if (valorAtual) sel.value = valorAtual;
 }
 
@@ -2572,7 +2572,7 @@ function renderChecklistPendencias() {
   CHECKLIST_MODELO.forEach(s => totalModelo += s.itens.length);
 
   // Projetos que têm checklist iniciado mas não 100% completo — apenas projetos ATIVOS
-  const idsAtivos = new Set(projetos.filter(p => p.progresso < 100).map(p => String(p.id)));
+  const idsAtivos = new Set(projetos.filter(p => !p.arquivado).map(p => String(p.id)));
   const pendentes = [];
   checklists.forEach(cl => {
     if (!idsAtivos.has(String(cl.projetoId))) return; // ignora arquivados
